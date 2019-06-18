@@ -1,12 +1,11 @@
-import cv2
-from albumentations import VerticalFlip, RandomCrop, PadIfNeeded, HorizontalFlip, Resize
+from albumentations import HorizontalFlip, Resize
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import torch
 from engine import train_one_epoch, evaluate
 import utils
 
-from google_object_detection.data import get_aug, GoogleObjDetection
+from google_open_images_object_detection.data import get_aug, GoogleObjDetection
 
 model=fasterrcnn_resnet50_fpn(pretrained=True)
 
