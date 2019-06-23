@@ -18,7 +18,6 @@ import matplotlib.pyplot as plt
 import random
 import os
 import os.path as osp
-
 from sklearn.preprocessing import LabelEncoder
 
 from kaggle_lyan_utils import image_resize, read_turbo
@@ -61,8 +60,8 @@ class GoogleObjDetection:
         idx = self.img_ids[idx]
         img_meta = self.d[self.d.ImageIDINT == idx]
         img_fp = osp.join(self.base_dir, self.img_dir, img_meta.ImageID.values[0] + '.jpg')
-        img=read_turbo(img_fp)
-        # img = cv2.imread(img_fp)
+        # img=read_turbo(img_fp)
+        img = cv2.imread(img_fp)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # img = image_resize(img, width=256)
 
