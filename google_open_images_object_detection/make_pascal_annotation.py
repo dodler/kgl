@@ -21,14 +21,14 @@ for i in range(attr_desc.shape[0]):
     cls2name[attr_desc.iloc[i, 0]] = attr_desc.iloc[i, 1]
 
 
-@jit
+# @jit
 def make_elm_with_text(tag, text):
     elm = etree.Element(tag)
     elm.text = text
     return elm
 
 
-@jit
+# @jit
 def make_default_source():
     root = etree.Element('source')
 
@@ -43,7 +43,7 @@ def make_default_source():
     return root
 
 
-@jit
+# @jit
 def make_size(width, height):
     result = etree.Element('size')
     result.append(make_elm_with_text('width', str(width)))
@@ -52,13 +52,12 @@ def make_size(width, height):
 
     return result
 
-
 def make_single_object_elm(sobj, w, h):
     result = etree.Element('object')
-    result.append(make_elm_with_text('name', cls2name[sobj.LabelName]))
+    result.append(make_elm_with_text('name', cls2name[sobj.iloc[3]])) # subj.iloc[3] - LabelName
 
     result.append(make_elm_with_text('pose', 'Unspecified'))
-    result.append(make_elm_with_text('truncated', str(sobj.IsTruncated)))
+    result.append(make_elm_with_text('truncated', str(sobj.iloc[10])))
     result.append(make_elm_with_text('difficult', '0'))
 
     box = etree.Element('bndbox')
@@ -71,7 +70,6 @@ def make_single_object_elm(sobj, w, h):
     result.append(box)
 
     return result
-
 
 def make_xml_string(obj):
     obj = obj.reset_index()
