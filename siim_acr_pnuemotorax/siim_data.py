@@ -1,16 +1,15 @@
 from __future__ import print_function
 
 import os
-
+import os.path as osp
+import pandas as pd
 import cv2
 import numpy as np
 import torch
 import torch.utils.data
 from torchvision import transforms
-import os
-import os.path as osp
 
-from siim_acr_pnuemotorax.segmentation.albs import aug_geometric, aug_geom_color
+from siim_acr_pnuemotorax.segmentation.albs import aug_geom_color
 
 kernel = np.ones((5, 5), np.uint8)
 
@@ -40,7 +39,7 @@ class SIIMDatasetSegmentation(torch.utils.data.Dataset):
             self.img_ids = img_ids
 
         if ext_img_ids is not None:
-            self.img_ids=ext_img_ids
+            self.img_ids = ext_img_ids
             print('using img ids from args')
 
         self.height = 1024
@@ -76,6 +75,28 @@ class SIIMDatasetSegmentation(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.img_ids)
+
+
+def from_folds(image_dir,
+               mask_dir,
+               aug_trn,
+               aug_val,
+               folds_path='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
+               fold=0):
+    folds = pd.read_csv(folds_path)
+    valid_ids_list = folds[folds.fold == fold].ids.values.tolist()
+    train_ids_list = folds[folds.fold != fold].ids.values.tolist()
+
+    valid_ids_list = [k.split('/')[-1] for k in valid_ids_list]
+    train_ids_list = [k.split('/')[-1] for k in train_ids_list]
+
+    trn_ds = SIIMDatasetSegmentation(image_dir=image_dir, mask_dir=mask_dir, aug=aug_trn)
+    val_ds = SIIMDatasetSegmentation(image_dir=image_dir, mask_dir=mask_dir, aug=aug_val)
+
+    trn_ds.img_ids = train_ids_list
+    val_ds.img_ids = valid_ids_list
+
+    return trn_ds, val_ds
 
 
 if __name__ == '__main__':

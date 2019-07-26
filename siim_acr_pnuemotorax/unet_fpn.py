@@ -1,16 +1,16 @@
 import argparse
 import datetime
-import uuid
 
 import segmentation_models_pytorch as smp
 import torch
-from albumentations import Compose, Lambda
 from torch.utils.data import DataLoader
 
-from siim_acr_pnuemotorax.segmentation.albs import aug_geom_color, aug_resize, aug_light
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+
+from siim_acr_pnuemotorax.segmentation.albs import aug_light
 from siim_acr_pnuemotorax.segmentation.custom_epoch import TrainEpoch, ValidEpoch
-from siim_acr_pnuemotorax.segmentation.unet import symmetric_lovasz, lovasz_hinge
-from siim_acr_pnuemotorax.siim_data import SIIMDatasetSegmentation
+from siim_acr_pnuemotorax.segmentation.unet import lovasz_hinge
+from siim_acr_pnuemotorax.siim_data import from_folds
 
 parser = argparse.ArgumentParser(description='SIIM ACR Pneumotorax unet training')
 
@@ -23,8 +23,11 @@ parser.add_argument('--batch-size', default=4, type=int)
 parser.add_argument('--opt-step-size', default=1, type=int)
 parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--seg-net', choices=['unet', 'fpn'], default='fpn')
-parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201', 'densenet161'
-                                                                                                  'dpn68', 'dpn68b',
+parser.add_argument('--loss', choices=['bce-dice', 'lovasz'], default='bce-dice')
+parser.add_argument('--fold',type=int, default=0)
+parser.add_argument('--epochs',type=int, default=120)
+parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201',
+                                                     'densenet161' 'dpn68', 'dpn68b',
                                                      'dpn92', 'dpn98', 'dpn107', 'dpn131',
                                                      'inceptionresnetv2', 'resnet101', 'resnet152',
                                                      'se_resnet101', 'se_resnet152',
@@ -49,13 +52,16 @@ else:
 
 model.to(0)
 
-loss = smp.utils.losses.BCEDiceLoss(eps=1.)
-
 
 def lovasz_and_dice(pred, gt):
     return lovasz_hinge(pred, gt)
     # return loss(gt, pred)
 
+
+if args.loss == 'bce-dice':
+    loss = smp.utils.losses.BCEDiceLoss(eps=1.)
+else:
+    loss = lovasz_hinge
 
 metrics = [
     smp.utils.metrics.IoUMetric(eps=1.),
@@ -77,13 +83,16 @@ model = torch.nn.DataParallel(model)
 # create epoch runners
 # it is a simple loop of iterating over dataloader`s samples
 
-experiment_name = args.backbone + '_' + args.seg_net + '_' + str(args.opt) + '_' + str(args.batch_size) + '_' + datetime.datetime.now().strftime(
-    "%Y-%m-%d_%H_%M_%S")
-
+experiment_name = args.backbone + '_' \
+                  + args.seg_net + '_' \
+                  + str(args.opt) + '_' \
+                  + str(args.batch_size) + '_' \
+                  + str(args.loss) + '_' \
+                  + datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
 train_epoch = TrainEpoch(
     model,
-    loss=lovasz_and_dice,
+    loss=loss,
     metrics=metrics,
     optimizer=optimizer,
     device=DEVICE,
@@ -94,7 +103,7 @@ train_epoch = TrainEpoch(
 
 valid_epoch = ValidEpoch(
     model,
-    loss=lovasz_and_dice,
+    loss=loss,
     metrics=metrics,
     device=DEVICE,
     verbose=True,
@@ -103,17 +112,23 @@ valid_epoch = ValidEpoch(
 
 # train model for 40 epochs
 
+#
+# train_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
+#                                         mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+#                                         aug=aug_light,
+#                                         # preprocessing_fn=get_preprocessing(preprocessing_fn)
+#                                         )
+# valid_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/val2017',
+#                                         mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+#                                         aug=None,
+#                                         # preprocessing_fn=get_preprocessing(preprocessing_fn)
+#                                         )
 
-train_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
+train_dataset, valid_dataset=from_folds(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
                                         mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
-                                        aug=aug_light,
-                                        # preprocessing_fn=get_preprocessing(preprocessing_fn)
-                                        )
-valid_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/val2017',
-                                        mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
-                                        aug=None,
-                                        # preprocessing_fn=get_preprocessing(preprocessing_fn)
-                                        )
+                                        aug_trn=aug_light,
+                                        aug_val=None,
+                                        fold=args.fold)
 
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
                           num_workers=8)
@@ -137,17 +152,15 @@ def save_state(model, epoch, opt, lr, score, val_loss, train_loss):
     state = {'net': model.state_dict(), 'opt': opt.state_dict(), 'epoch': epoch, 'lr': lr, 'score': score,
              'val_loss': val_loss, 'train_loss': train_loss}
     filename = '/var/data/checkpoints/' + args.backbone + '_' + args.seg_net + '_' + str(
-        epoch) + '_' + datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S") + '.pth'
+        epoch) + '_' + datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S") + '.pth'
     torch.save(state, filename)
     print('dumped to ', filename)
 
 
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-
-scheduler = ReduceLROnPlateau(optimizer, verbose=True)
+scheduler = ReduceLROnPlateau(optimizer, verbose=True, mode='max')
 
 try:
-    for i in range(0, 120):
+    for i in range(0, args.epochs):
         print('\nEpoch: {}'.format(i))
         train_logs = train_epoch.run(train_loader)
         valid_logs = valid_epoch.run(valid_loader)
@@ -156,10 +169,7 @@ try:
         # if max_score < valid_logs['iou']:
         #     max_score = valid_logs['iou']
         save_state(model.module, epoch=i, opt=optimizer, lr=lr, score=max_score, val_loss=-1, train_loss=-1)
-        # print('Model saved!')
-
-        fscore = train_logs['f-score']
-        scheduler.step(fscore, i)
+        scheduler.step(valid_logs['f-score'], i)
 
         # if i == 40 or i == 80:
         #     lr /= 10.0
@@ -167,6 +177,6 @@ try:
         #     optimizer.param_groups[0]['lr'] = lr
         #     print('Decrease decoder learning rate to !')
 except KeyboardInterrupt:
-    save_state(model=model.module, epoch=i, opt=optimizer, lr=lr, score=-1, val_loss=-1, train_loss=-1)
+    save_state(model=model.module, epoch=i, opt=optimizer, lr=lr, score=max_score, val_loss=-1, train_loss=-1)
 
-save_state(model=model.module, epoch=i, opt=optimizer, lr=lr, score=-1, val_loss=-1, train_loss=-1)
+save_state(model=model.module, epoch=i, opt=optimizer, lr=lr, score=max_score, val_loss=-1, train_loss=-1)

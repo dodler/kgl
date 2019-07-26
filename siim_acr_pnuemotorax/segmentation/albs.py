@@ -24,8 +24,6 @@ aug_resize=Resize(SIZE, SIZE)
 aug_light=Compose([
     aug_resize,
     HorizontalFlip(p=0.3),
-    RandomGamma(p=0.2),
-    RandomBrightnessContrast(p=0.4),
 ])
 
 aug_geom_color = Compose([
