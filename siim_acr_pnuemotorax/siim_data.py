@@ -98,6 +98,9 @@ def from_folds(image_dir,
 
     return trn_ds, val_ds
 
+def from_pickle(train_ids, holdout):
+    pass
+
 
 if __name__ == '__main__':
     ds = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',

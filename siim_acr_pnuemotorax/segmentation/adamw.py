@@ -4,13 +4,14 @@ https://github.com/pytorch/pytorch/pull/3740/files
 hope it will be merged into pytorch
 '''
 import torch
+
 if torch.__version__ not in ['0.3.1']:
     import warnings
+
     warnings.warn("Please check if AdamW has been implemented in pytorch %s" % torch.__version__, DeprecationWarning)
 
 import math
 from torch.optim.optimizer import Optimizer
-
 
 
 class AdamW(Optimizer):
@@ -111,8 +112,8 @@ class AdamW(Optimizer):
                 step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
                 if group['weight_decay'] != 0:
-                    #eta = group['lr'] / self._initial_lr # scheduler changes lr only
-                    #p.data.add_(-group['weight_decay'] * eta, p.data)
+                    # eta = group['lr'] / self._initial_lr # scheduler changes lr only
+                    # p.data.add_(-group['weight_decay'] * eta, p.data)
                     w = group['weight_decay'] * group['lr']
                     p.data.add_(-w, p.data)
 

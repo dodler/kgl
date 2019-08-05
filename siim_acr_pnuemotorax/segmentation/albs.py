@@ -1,3 +1,4 @@
+import cv2
 from albumentations import (
     PadIfNeeded,
     HorizontalFlip,
@@ -15,7 +16,7 @@ from albumentations import (
     CLAHE,
     RandomBrightnessContrast,
     RandomGamma,
-    Resize)
+    Resize, ShiftScaleRotate, GaussNoise)
 
 SIZE = 1024
 
@@ -23,7 +24,8 @@ aug_resize=Resize(SIZE, SIZE)
 
 aug_light=Compose([
     aug_resize,
-    HorizontalFlip(p=0.3),
+    ShiftScaleRotate(rotate_limit=30,p=0.3, border_mode=cv2.BORDER_CONSTANT, value=0),
+    GaussNoise(p=0.3),
 ])
 
 aug_geom_color = Compose([

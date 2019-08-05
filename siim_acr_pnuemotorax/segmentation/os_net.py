@@ -92,7 +92,7 @@ class BaseOC(nn.Module):
         if use_self_attention:
             channels = 2 * in_channels
         else:
-            channels=in_channels
+            channels = in_channels
         self.conv_bn_dropout = nn.Sequential(
             nn.Conv2d(channels, out_channels, kernel_size=1, padding=0),
             ABN(out_channels),
@@ -106,5 +106,29 @@ class BaseOC(nn.Module):
                 context += priors[i]
             output = self.conv_bn_dropout(torch.cat([context, feats], 1))
         else:
-            output=self.conv_bn_dropout(feats)
+            output = self.conv_bn_dropout(feats)
         return output
+
+
+if __name__ == '__main__':
+    from torchsummary import summary
+    import os
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+
+    sa = SelfAttentionBlock2D(10, 100, 10)
+    sa.to(0)
+
+    summary(sa, (10, 10, 10))
+
+    # sa = SelfAttentionBlock2D(100, 10, 10)
+    # sa.to(0)
+    # summary(sa,(100,10,10))
+    #
+    # sa = SelfAttentionBlock2D(10, 100, 10)
+    # sa.to(0)
+    # summary(sa, (10,10,10))
+    #
+    # sa = SelfAttentionBlock2D(10, 10, 100)
+    # sa.to(0)
+    # summary(sa, (10,10,10))
