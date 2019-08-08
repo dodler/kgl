@@ -108,7 +108,8 @@ class Epoch:
 
 class TrainEpoch(Epoch):
 
-    def __init__(self, model, loss, metrics, optimizer, experiment_name, device='cpu', opt_step_size=1, verbose=True):
+    def __init__(self, model, loss, metrics, optimizer, experiment_name, device='cpu', opt_step_size=1,
+                 verbose=True, enorm=None):
         super().__init__(
             model=model,
             loss=loss,
@@ -118,6 +119,7 @@ class TrainEpoch(Epoch):
             verbose=verbose,
             experiment_name=experiment_name,
         )
+        self.enorm = enorm
         self.opt_step_size = opt_step_size
         self.optimizer = optimizer
         self.loss_batch = 0
@@ -133,6 +135,8 @@ class TrainEpoch(Epoch):
 
         if self.cnt % self.opt_step_size == 0:
             self.optimizer.step()
+            if self.enorm is not None:
+                self.enorm.step()
             self.optimizer.zero_grad()
             self.loss_batch = 0
 

@@ -1,3 +1,7 @@
+import sys
+
+sys.path.append('/home/lyan/Documents/enorm/enorm')
+
 import argparse
 import datetime
 
@@ -19,6 +23,11 @@ from siim_acr_pnuemotorax.segmentation.unet import lovasz_hinge
 from siim_acr_pnuemotorax.siim_data import from_folds, SIIMDatasetSegmentation
 from torchcontrib.optim import SWA
 
+import os
+import os.path as osp
+
+from enorm import ENorm
+
 NON_BEST_DONE_THRESH = 10
 
 parser = argparse.ArgumentParser(description='SIIM ACR Pneumotorax unet training')
@@ -36,7 +45,7 @@ parser.add_argument('--loss', choices=['bce-dice', 'lovasz', 'weighted-bce', 'fo
 parser.add_argument('--fold', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=120)
 parser.add_argument('--comment', type=str, default=None)
-parser.add_argument('--swa',action='store_true')
+parser.add_argument('--swa', action='store_true')
 parser.add_argument('--backbone-weights', type=str, default=None)
 parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201',
                                                      'densenet161' 'dpn68', 'dpn68b',
@@ -49,6 +58,7 @@ parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169
                                                      'efficientnet-b2', 'efficientnet-b3',
                                                      'efficientnet-b4', 'efficientnet-b5'],
                     default='se_resnext50_32x4d')
+parser.add_argument('--enorm', action='store_true')
 args = parser.parse_args()
 
 ENCODER = args.backbone
@@ -63,15 +73,15 @@ if args.seg_net == 'fpn':
 elif args.seg_net == 'unet':
     model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION)
 elif args.seg_net == 'ocunet':
-    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION, use_oc_module=True)
+    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION,
+                 use_oc_module=True)
 else:
     raise Exception('unsupported' + str(args.seg_net))
 
-
 if args.backbone_weights is not None:
-    pretrained_dict=torch.load(args.backbone_weights, map_location='cpu')['model']
+    pretrained_dict = torch.load(args.backbone_weights, map_location='cpu')['model']
 
-    model_dict=model.encoder.state_dict()
+    model_dict = model.encoder.state_dict()
     pretrained_dict = {k.replace('feature_extr.', ''): v for k, v in pretrained_dict.items()
                        if k.replace('feature_extr.', '') in model_dict}
     model_dict.update(pretrained_dict)
@@ -122,7 +132,7 @@ metrics = [
 
 params = [
     {'params': model.decoder.parameters(), 'lr': args.lr},
-    {'params': model.encoder.parameters(), 'lr': args.lr/100.0},
+    {'params': model.encoder.parameters(), 'lr': args.lr / 100.0},
 ]
 
 if args.opt == 'Adam':
@@ -137,9 +147,13 @@ if args.resume is not None:
     model.load_state_dict(state['net'])
     optimizer.load_state_dict(state['opt'])
 
-
 if args.swa:
-    opt=SWA(optimizer)
+    opt = SWA(optimizer)
+
+if args.enorm:
+    enorm = ENorm(model.named_parameters(), optimizer, c=1)  # fixme, pull to arguments
+else:
+    enorm = None
 
 model = torch.nn.DataParallel(model)
 
@@ -158,16 +172,21 @@ experiment_name = args.backbone + '_' \
                   + 'fold' + str(args.fold) + '_' \
                   + comment + '_'
 
-if args.opt_step_size>1:
-    experiment_name+='_step_size_'+str(args.opt_step_size)+'_'
+if args.opt_step_size > 1:
+    experiment_name += '_step_size_' + str(args.opt_step_size) + '_'
 
 if args.swa:
-    experiment_name+='swa_'
+    experiment_name += '_swa_'
+
+if args.enorm:
+    experiment_name += '_enorm_'
 
 if args.backbone_weights is not None:
-    experiment_name+='_backbone_weights_'+args.backbone_weights.replace('/','_')+'_'
+    experiment_name += '_backbone_weights_' + args.backbone_weights.replace('/', '_') + '_'
 
 experiment_name += datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+
+experiment_name = experiment_name.replace('__', '_')
 
 train_epoch = TrainEpoch(
     model,
@@ -178,6 +197,7 @@ train_epoch = TrainEpoch(
     opt_step_size=args.opt_step_size,
     verbose=True,
     experiment_name=experiment_name,
+    enorm=enorm
 )
 
 valid_epoch = ValidEpoch(
@@ -226,11 +246,8 @@ def upd_lr(opt, lr):
 
 upd_lr(optimizer, args.lr)
 
-import os
-import os.path as osp
 
 def save_state(model, epoch, opt, lr, score, val_loss, train_loss):
-
     if not osp.exists('/var/data/checkpoints/' + experiment_name):
         os.mkdir('/var/data/checkpoints/' + experiment_name)
 
@@ -256,9 +273,9 @@ for i in range(0, args.epochs):
     if fscore > best_metric:
         best_metric = fscore
         save_state(model.module, epoch=i, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1)
-        non_best_epochs_done=0
+        non_best_epochs_done = 0
     else:
-        non_best_epochs_done+=1
+        non_best_epochs_done += 1
 
     if non_best_epochs_done > NON_BEST_DONE_THRESH:
         print('doing early stopping')
