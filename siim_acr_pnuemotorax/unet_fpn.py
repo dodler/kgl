@@ -46,6 +46,12 @@ parser.add_argument('--fold', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=120)
 parser.add_argument('--comment', type=str, default=None)
 parser.add_argument('--swa', action='store_true')
+parser.add_argument('--image-dir',type=str, default='/var/ssd_1t/siim_acr_pneumo/train2017',required=False)
+parser.add_argument('--folds-path',type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
+                    required=False)
+parser.add_argument('--mask-dir',type=str,
+                    default='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+                    required=False)
 parser.add_argument('--backbone-weights', type=str, default=None)
 parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201',
                                                      'densenet161' 'dpn68', 'dpn68b',
@@ -138,7 +144,7 @@ params = [
 if args.opt == 'Adam':
     optimizer = torch.optim.Adam(params, weigth_decay=5e-4)
 elif args.opt == 'SGD':
-    optimizer = torch.optim.SGD(params, momentum=0.9, weigth_decay=5e-4)
+    optimizer = torch.optim.SGD(params, momentum=0.9)
 elif args.opt == 'Adamw':
     optimizer = AdamW(params, weight_decay=5e-4)
 
@@ -151,7 +157,7 @@ if args.swa:
     opt = SWA(optimizer)
 
 if args.enorm:
-    enorm = ENorm(model.named_parameters(), optimizer, c=1)  # fixme, pull to arguments
+    enorm = ENorm(model.encoder.named_parameters(), optimizer, model_type='conv', c=1)  # fixme, pull to arguments
 else:
     enorm = None
 
@@ -212,19 +218,20 @@ valid_epoch = ValidEpoch(
 # train model for 40 epochs
 
 if args.fold == -1:
-    train_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
-                                            mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+    train_dataset = SIIMDatasetSegmentation(image_dir=args.image_dir,
+                                            mask_dir=args.mask_dir,
                                             aug=aug_light,
                                             # preprocessing_fn=get_preprocessing(preprocessing_fn)
                                             )
-    valid_dataset = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/val2017',
-                                            mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+    valid_dataset = SIIMDatasetSegmentation(image_dir=args.image_dir,
+                                            mask_dir=args.mask_dir,
                                             aug=aug_resize,
                                             # preprocessing_fn=get_preprocessing(preprocessing_fn)
                                             )
 else:
-    train_dataset, valid_dataset = from_folds(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
-                                              mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+    train_dataset, valid_dataset = from_folds(image_dir=args.image_dir,
+                                              mask_dir=args.mask_dir,
+                                              folds_path=args.folds_path,
                                               aug_trn=aug_light,
                                               aug_val=aug_resize,
                                               fold=args.fold)
