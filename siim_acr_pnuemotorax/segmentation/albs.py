@@ -23,7 +23,7 @@ SIZE = 1024
 aug_resize=Resize(SIZE, SIZE)
 
 aug_light=Compose([
-    aug_resize,
+    # aug_resize,
     # OneOf([
     #         ElasticTransform(p=0.5, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
     #         GridDistortion(p=0.5),

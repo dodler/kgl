@@ -28,7 +28,7 @@ import os.path as osp
 
 from enorm import ENorm
 
-NON_BEST_DONE_THRESH = 10
+NON_BEST_DONE_THRESH = 15
 
 parser = argparse.ArgumentParser(description='SIIM ACR Pneumotorax unet training')
 
@@ -46,12 +46,14 @@ parser.add_argument('--fold', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=120)
 parser.add_argument('--comment', type=str, default=None)
 parser.add_argument('--swa', action='store_true')
+
 parser.add_argument('--image-dir',type=str, default='/var/ssd_1t/siim_acr_pneumo/train2017',required=False)
 parser.add_argument('--folds-path',type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
                     required=False)
 parser.add_argument('--mask-dir',type=str,
                     default='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
                     required=False)
+
 parser.add_argument('--backbone-weights', type=str, default=None)
 parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201',
                                                      'densenet161' 'dpn68', 'dpn68b',
@@ -91,8 +93,8 @@ if args.backbone_weights is not None:
     pretrained_dict = {k.replace('feature_extr.', ''): v for k, v in pretrained_dict.items()
                        if k.replace('feature_extr.', '') in model_dict}
     model_dict.update(pretrained_dict)
-    model_dict['last_linear.bias'] = None
-    model_dict['last_linear.weight'] = None
+    # model_dict['last_linear.bias'] = None
+    # model_dict['last_linear.weight'] = None
     model.encoder.load_state_dict(model_dict)
 
 model.to(0)

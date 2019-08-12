@@ -98,6 +98,7 @@ def from_folds(image_dir,
 
     return trn_ds, val_ds
 
+
 def from_pickle(train_ids, holdout):
     pass
 
