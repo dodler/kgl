@@ -103,8 +103,9 @@ class Unet(EncoderDecoder):
 
         self.name = 'u-{}'.format(encoder_name)
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     ACTIVATION = 'sigmoid'
-    model = Unet(encoder_name='efficientnet-b1', encoder_weights='imagenet', classes=1, activation=ACTIVATION)
+    model = Unet(encoder_name='efficientnet-b5', encoder_weights='imagenet', classes=1, activation=ACTIVATION)
     # model = Unet(encoder_name='resnet18', encoder_weights='imagenet', classes=1, activation=ACTIVATION)
-    model(torch.zeros(1,3,224,224))
+    model(torch.zeros(1, 3, 1024, 1024))

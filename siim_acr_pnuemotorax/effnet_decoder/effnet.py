@@ -155,10 +155,7 @@ class EfficientNetEncoder(nn.Module):
 
         # Stem
         x = relu_fn(self._bn0(self._conv_stem(inputs)))
-
         outputs.append(x)
-
-        shapes = []
 
         # Blocks
         for idx, block in enumerate(self._blocks):
@@ -166,15 +163,12 @@ class EfficientNetEncoder(nn.Module):
             if drop_connect_rate:
                 drop_connect_rate *= float(idx) / len(self._blocks)
 
-            shapes.append((x.shape[1], x.shape[2]))
-
             x = block(x, drop_connect_rate=drop_connect_rate)
             if idx in self.channels:
                 outputs.append(x)
 
         # Head
         x = relu_fn(self._bn1(self._conv_head(x)))
-        # print(x.shape)
         outputs.append(x)
 
         return outputs[::-1]
@@ -196,7 +190,7 @@ class EfficientNetEncoder(nn.Module):
         if model_name in effnet_output_shapes.keys():
             model.out_shapes = effnet_output_shapes[model_name]
         else:
-            print('model name',model_name,'is not supported cant set out shapes')
+            print('model name', model_name, 'is not supported cant set out shapes')
         return model
 
     @classmethod
@@ -220,7 +214,7 @@ effnet_channels = {
     'efficientnet-b1': (3, 6, 9),
     'efficientnet-b2': (3, 6, 9),
     'efficientnet-b3': (3, 6, 9),
-    'efficientnet-b4': (3, 7, 1),
+    'efficientnet-b4': (3, 7, 11),
     'efficientnet-b5': (4, 9, 14),
 }
 
@@ -229,7 +223,7 @@ effnet_output_shapes = {
     'efficientnet-b1': [1280, 80, 40, 24, 32],
     'efficientnet-b2': [1408, 88, 48, 24, 32],
     'efficientnet-b3': [1536, 96, 48, 32, 40],
-    'efficientnet-b4': [1792, 56, 32, 24, 48],
+    'efficientnet-b4': [1792, 112, 56, 32, 48],
     'efficientnet-b5': [2048, 128, 64, 40, 48],
 }
 
@@ -240,25 +234,25 @@ if __name__ == '__main__':
         print('sh', i.shape)
 
     print('------------')
+    # #
+    # model = EfficientNetEncoder.from_pretrained('efficientnet-b1')
+    # t = model(torch.zeros(1, 3, 224, 224))
+    # for i in t:
+    #     print('sh', i.shape)
+    #
+    # print('------------')
 
-    model = EfficientNetEncoder.from_pretrained('efficientnet-b1')
-    t = model(torch.zeros(1, 3, 224, 224))
-    for i in t:
-        print('sh', i.shape)
-
-    print('------------')
-
-    model = EfficientNetEncoder.from_pretrained('efficientnet-b2')
-    t = model(torch.zeros(1, 3, 224, 224))
-    for i in t:
-        print('sh', i.shape)
-    print('------------')
-
-    model = EfficientNetEncoder.from_pretrained('efficientnet-b3')
-    t = model(torch.zeros(1, 3, 224, 224))
-    for i in t:
-        print('sh', i.shape)
-    print('------------')
+    # model = EfficientNetEncoder.from_pretrained('efficientnet-b2')
+    # t = model(torch.zeros(1, 3, 224, 224))
+    # for i in t:
+    #     print('sh', i.shape)
+    # print('------------')
+    #
+    # model = EfficientNetEncoder.from_pretrained('efficientnet-b3')
+    # t = model(torch.zeros(1, 3, 224, 224))
+    # for i in t:
+    #     print('sh', i.shape)
+    # print('------------')
 
     model = EfficientNetEncoder.from_pretrained('efficientnet-b4')
     t = model(torch.zeros(1, 3, 224, 224))
@@ -266,7 +260,7 @@ if __name__ == '__main__':
         print('sh', i.shape)
     print('------------')
 
-    model = EfficientNetEncoder.from_pretrained('efficientnet-b5')
-    t = model(torch.zeros(1, 3, 224, 224))
-    for i in t:
-        print('sh', i.shape)
+    # model = EfficientNetEncoder.from_pretrained('efficientnet-b5')
+    # t = model(torch.zeros(1, 3, 224, 224))
+    # for i in t:
+    #     print('sh', i.shape)

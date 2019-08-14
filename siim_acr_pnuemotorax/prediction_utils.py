@@ -1,5 +1,6 @@
 import os
 
+from tqdm import *
 import numpy as np
 from numba import njit, jit
 
@@ -82,7 +83,7 @@ def fit_thresh(preds, masks):
         print('iterating, left=', left, 'right=', right, 'score_delta=', score_delta, 'best score', best_score)
         m = np.zeros(n)
         x = np.linspace(left, right, n)
-        for i in range(n):
+        for i in tqdm(range(n)):
             r = eval_thresh(preds, masks, thresh=x[i])
             m[i] = r
 
