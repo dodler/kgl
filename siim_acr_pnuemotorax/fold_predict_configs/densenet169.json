@@ -1,0 +1,16 @@
+{
+  "comment":"densenet169_unet_Adamw_14_bce-dice_fold0__swa_2019-08-27_17_20_16/",
+  "backbone":"densenet169",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "densenet169_unet_Adamw_14_bce-dice_fold0__swa_2019-08-27_17_20_16/epoch_17.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold1__swa_2019-08-27_18_58_24/epoch_20.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold2__swa_2019-08-27_20_17_02/epoch_9.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold3__swa_2019-08-27_21_20_30/epoch_9.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold4__swa_2019-08-27_22_05_49/epoch_25.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold5__swa_2019-08-28_00_07_24/epoch_28.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold6__swa_2019-08-28_02_18_00/epoch_28.pth",
+    "densenet169_unet_Adamw_14_bce-dice_fold7__swa_2019-08-28_04_28_13/epoch_22.pth"
+  ]
+}

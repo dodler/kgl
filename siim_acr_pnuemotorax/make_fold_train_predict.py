@@ -25,7 +25,7 @@ def from_config(config_path):
     return config
 
 
-config = from_config('fold_predict_configs/densenet169.json')
+config = from_config('fold_predict_configs/efficientnet-b0_v4.json')
 
 checkpoints_list = config['checkpoints']
 checkpoints_list = [osp.join(config['base_dir'], k) for k in checkpoints_list]
@@ -33,10 +33,7 @@ checkpoints_list = [osp.join(config['base_dir'], k) for k in checkpoints_list]
 print(config['comment'])
 
 ENCODER = config['backbone']
-if ENCODER == 'dpn92':
-    ENCODER_WEIGHTS = 'imagenet+5k'
-else:
-    ENCODER_WEIGHTS = 'imagenet'
+ENCODER_WEIGHTS = 'imagenet'
 DEVICE = 'cuda'
 
 CLASSES = ['pneumo']
@@ -54,31 +51,31 @@ model.to(0)
 
 
 def simple_predict(model_ft, raw_img):
-    img = norm(to_tensor(raw_img)).cuda().unsqueeze(0)
+    img = to_tensor(raw_img)
+    img = norm(img).cuda().unsqueeze(0)
     with torch.no_grad():
         prd = model_ft(img)
-        return torch.sigmoid(prd).detach().cpu().numpy().squeeze()
+        return torch.sigmoid(prd).detach().cpu().numpy()
 
 
 def tta(model_ft, raw_img):
     result = simple_predict(model_ft, raw_img)
+    pred = simple_predict(model_ft, cv2.flip(raw_img, 0))
+    result += cv2.flip(pred.reshape(1024, 1024), 0).reshape(1, 1, 1024, 1024)
 
-    # pred = simple_predict(model_ft, cv2.flip(raw_img.copy(), 0))
-    # result += cv2.flip(pred.copy(), 0)
+    pred = simple_predict(model_ft, cv2.flip(raw_img, 1))
+    result += cv2.flip(pred.reshape(1024, 1024), 0).reshape(1, 1, 1024, 1024)
 
-    pred = simple_predict(model_ft, cv2.flip(raw_img.copy(), 1))
-    result += cv2.flip(pred.copy(), 1)
-
-    return result / 2.0
+    return result / 3.0
 
 
-def make_predict(model_ft, target_imgs, do_tta=False):
+# simple_predict = tta
+
+
+def make_predict(model_ft, target_imgs):
     result = np.zeros((len(target_imgs), 1024, 1024)).astype(np.float32)
     for i in tqdm(range(len(target_imgs))):
-        if do_tta:
-            result[i] = tta(model_ft, target_imgs[i])
-        else:
-            result[i] = simple_predict(model_ft, target_imgs[i])
+        result[i] = simple_predict(model_ft, target_imgs[i])
     return result
 
 
@@ -120,14 +117,12 @@ def get_test_imgs(sub_path='subf93.csv'):
 
 val_imgs, masks = get_holdout_imgs()
 
-TTA=True
-
 result = np.zeros((len(val_imgs), 1024, 1024)).astype(np.float32)
 for ckpt in checkpoints_list:
     ckpt_torch = torch.load(ckpt)
     print('ckpt', ckpt, 'score', str(ckpt_torch['score']))
     model.load_state_dict(ckpt_torch['net'])
-    result += make_predict(model, val_imgs, do_tta=TTA)
+    result += make_predict(model, val_imgs)
 
 print('dumped val result to ', 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
 dump(result.astype(np.float16), 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
@@ -136,7 +131,7 @@ test_imgs = get_test_imgs()
 result = np.zeros((len(test_imgs), 1024, 1024)).astype(np.float32)
 for ckpt in checkpoints_list:
     model.load_state_dict(torch.load(ckpt)['net'])
-    result += make_predict(model, test_imgs,do_tta=TTA)
+    result += make_predict(model, test_imgs)
 
 print('dumped test result to ', 'test_' + checkpoints_list[0].split('/')[-2] + '.gz')
 dump(result.astype(np.float16), 'test_' + checkpoints_list[0].split('/')[-2] + '.gz')

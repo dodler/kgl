@@ -1,0 +1,13 @@
+{
+  "comment":"dpn68_unet_Adamw_9_bce-dice_fold0__swa_2019-08-23_12_50_18",
+  "backbone":"dpn68",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "dpn68_unet_Adamw_9_bce-dice_fold0__swa_2019-08-23_12_50_18/epoch_13.pth",
+    "dpn68_unet_Adamw_9_bce-dice_fold1__swa_2019-08-23_14_32_07/epoch_21.pth",
+    "dpn68_unet_Adamw_9_bce-dice_fold2__swa_2019-08-23_16_40_46/epoch_15.pth",
+    "dpn68_unet_Adamw_9_bce-dice_fold3__swa_2019-08-23_18_29_41/epoch_16.pth",
+    "dpn68_unet_Adamw_9_bce-dice_fold4__swa_2019-08-23_20_22_08/epoch_13.pth"
+  ]
+}

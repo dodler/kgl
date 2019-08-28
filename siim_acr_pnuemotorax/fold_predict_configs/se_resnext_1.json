@@ -1,0 +1,13 @@
+{
+  "comment":"se_resnext 32 4d swa best 5 folds nih chest pretrain",
+  "backbone":"se_resnext50_32x4d",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-04_21_27_56/epoch_33.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold1__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-05_01_05_37/epoch_16.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold2__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-05_03_21_17/epoch_33.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold3__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-05_06_58_38/epoch_37.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold4__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-05_10_58_05/epoch_21.pth"
+  ]
+}

@@ -34,6 +34,7 @@ aug_light=Compose([
     # OneOf([RandomSizedCrop(min_max_height=(int(SIZE * 0.95), SIZE), height=SIZE, width=SIZE, p=0.5),
     #        PadIfNeeded(min_height=SIZE, min_width=SIZE, p=0.5)], p=1),
 
+    HorizontalFlip(p=0.2),
     ShiftScaleRotate(rotate_limit=40,p=0.4, border_mode=cv2.BORDER_CONSTANT, value=0),
     GaussNoise(p=0.4),
 ])

@@ -1,0 +1,13 @@
+{
+  "comment":"efficientnet-b0_unet_Adamw_6_bce-dice_fold0_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights",
+  "backbone":"efficientnet-b0",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "efficientnet-b0_unet_Adamw_6_bce-dice_fold0_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights_effnetb0.pth_2019-08-15_12_59_14/epoch_10.pth",
+    "efficientnet-b0_unet_Adamw_6_bce-dice_fold1_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights_effnetb0.pth_2019-08-15_14_28_56/epoch_16.pth",
+    "efficientnet-b0_unet_Adamw_6_bce-dice_fold2_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights_effnetb0.pth_2019-08-15_16_18_25/epoch_26.pth",
+    "efficientnet-b0_unet_Adamw_6_bce-dice_fold3_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights_effnetb0.pth_2019-08-15_18_44_06/epoch_42.pth",
+    "efficientnet-b0_unet_Adamw_6_bce-dice_fold4_pseudo_labels_random_dilation_aug_swa_pseudo_label_backbone_weights_nih_pretrained_weights_effnetb0.pth_2019-08-15_21_58_02/epoch_30.pth"
+  ]
+}

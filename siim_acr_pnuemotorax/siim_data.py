@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import os
 import os.path as osp
+import random
+
 import pandas as pd
 import cv2
 import numpy as np
@@ -56,6 +58,14 @@ class SIIMDatasetSegmentation(torch.utils.data.Dataset):
             mask = self.img_ids[idx]
             mask = osp.join(self.mask_dir, mask)
             mask = cv2.imread(mask, cv2.IMREAD_GRAYSCALE)
+            # if random.random()>0.5 and mask.sum() > 15000: # value aggregated from train masks distribution
+            #     kernel = np.ones((3, 3), np.uint8)
+            #     # random dilation or erosion
+            #     # for large masks to model inaccurate masking for large masks
+            #     if random.random() > 0.5:
+            #         mask = cv2.erode(mask, kernel, iterations=1)
+            #     else:
+            #         mask = cv2.dilate(mask, kernel, iterations=1)
 
         if self.aug is not None:
             if self.mask_dir is not None:
@@ -71,7 +81,7 @@ class SIIMDatasetSegmentation(torch.utils.data.Dataset):
         if self.mask_dir is not None:
             return self.norm(self.to_tensor(img)), torch.from_numpy(mask)
         else:
-            return self.norm(self.to_tensor(self.norm(img)))
+            return self.norm(self.to_tensor(img))
 
     def __len__(self):
         return len(self.img_ids)
@@ -103,6 +113,16 @@ def from_pickle(train_ids, holdout):
     pass
 
 
+def from_sub(sub_path, test_mask_path, imgs_path, aug):
+    sub = pd.read_csv(sub_path)
+    ds = SIIMDatasetSegmentation(image_dir=imgs_path, mask_dir=test_mask_path, aug=aug)
+    img_ids = []
+    for v in sub.ImageId.values.tolist():
+        if v != '-1':
+            img_ids.append(v + '.png')
+    return ds
+
+
 if __name__ == '__main__':
     ds = SIIMDatasetSegmentation(image_dir='/var/ssd_1t/siim_acr_pneumo/train2017',
                                  mask_dir='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
@@ -110,3 +130,13 @@ if __name__ == '__main__':
 
     b = next(iter(ds))
     print(b[1].max())
+
+    t = from_sub(
+        sub_path='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/sub_blend.csv',
+        test_mask_path='/var/ssd_1t/siim_acr_pneumo/test_masks',
+        imgs_path='/var/ssd_1t/siim_acr_pneumo/test_png/',
+        aug=None
+    )
+
+    for _ in t:
+        pass

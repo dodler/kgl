@@ -1,0 +1,13 @@
+{
+  "comment":"se_resnext 32 4d swa best 5 folds no nih chest pretrain old split",
+  "backbone":"se_resnext50_32x4d",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa_2019-08-04_01_46_56/epoch_32.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold1__swa_2019-08-04_05_19_45/epoch_24.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold2__swa_2019-08-04_08_13_45/epoch_12.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold3__swa_2019-08-04_10_10_11/epoch_26.pth",
+    "se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold4__swa_2019-08-04_13_14_10/epoch_30.pth"
+  ]
+}

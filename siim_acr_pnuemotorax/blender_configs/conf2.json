@@ -1,0 +1,8 @@
+{
+  "val":[
+    "val_dpn68_unet_Adamw_9_bce-dice_fold0__swa_2019-08-23_12_50_18.gz"
+  ],
+  "test":[
+    "test_dpn68_unet_Adamw_9_bce-dice_fold0__swa_2019-08-23_12_50_18.gz"
+  ]
+}

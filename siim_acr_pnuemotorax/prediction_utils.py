@@ -4,8 +4,6 @@ from tqdm import *
 import numpy as np
 from numba import njit, jit
 
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
 
 @njit
 def sigmoid(x):

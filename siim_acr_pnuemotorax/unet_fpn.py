@@ -18,15 +18,14 @@ from siim_acr_pnuemotorax.segmentation.albs import aug_light, aug_resize
 from siim_acr_pnuemotorax.segmentation.custom_epoch import TrainEpoch, ValidEpoch
 from siim_acr_pnuemotorax.segmentation.custom_fpn import FPN
 from siim_acr_pnuemotorax.segmentation.custom_unet import Unet
-from siim_acr_pnuemotorax.segmentation.focal_loss import FocalLoss2d
-from siim_acr_pnuemotorax.segmentation.unet import lovasz_hinge
-from siim_acr_pnuemotorax.siim_data import from_folds, SIIMDatasetSegmentation
+# from siim_acr_pnuemotorax.segmentation.unet import lovasz_hinge
+from siim_acr_pnuemotorax.siim_data import from_folds, SIIMDatasetSegmentation, from_sub
 from torchcontrib.optim import SWA
 
 import os
 import os.path as osp
 
-from enorm import ENorm
+# from enorm import ENorm
 
 NON_BEST_DONE_THRESH = 15
 
@@ -47,16 +46,16 @@ parser.add_argument('--epochs', type=int, default=120)
 parser.add_argument('--comment', type=str, default=None)
 parser.add_argument('--swa', action='store_true')
 
-parser.add_argument('--image-dir',type=str, default='/var/ssd_1t/siim_acr_pneumo/train2017',required=False)
-parser.add_argument('--folds-path',type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
+parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/siim_acr_pneumo/train2017', required=False)
+parser.add_argument('--folds-path', type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
                     required=False)
-parser.add_argument('--mask-dir',type=str,
+parser.add_argument('--mask-dir', type=str,
                     default='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
                     required=False)
-
+parser.add_argument('--pseudo-label', action='store_true')
 parser.add_argument('--backbone-weights', type=str, default=None)
 parser.add_argument('--backbone', type=str, choices=['densenet121', 'densenet169', 'densenet201',
-                                                     'densenet161' 'dpn68', 'dpn68b',
+                                                     'densenet161', 'dpn68', 'dpn68b',
                                                      'dpn92', 'dpn98', 'dpn107', 'dpn131',
                                                      'inceptionresnetv2', 'resnet101', 'resnet152',
                                                      'se_resnet101', 'se_resnet152',
@@ -70,7 +69,10 @@ parser.add_argument('--enorm', action='store_true')
 args = parser.parse_args()
 
 ENCODER = args.backbone
-ENCODER_WEIGHTS = 'imagenet'
+if ENCODER == 'dpn92' or ENCODER == 'dpn68b':
+    ENCODER_WEIGHTS = 'imagenet+5k'
+else:
+    ENCODER_WEIGHTS = 'imagenet'
 DEVICE = 'cuda'
 
 CLASSES = ['pneumo']
@@ -128,8 +130,8 @@ elif args.loss == 'lovasz':
     loss = lovasz_hinge
 elif args.loss == 'weighted-bce':
     loss = weighted_bce
-elif args.loss == 'focal':
-    loss = FocalLoss2d()  # fixme, not working still
+# elif args.loss == 'focal':
+#     loss = FocalLoss2d()  # fixme, not working still
 else:
     raise Exception('unsupported loss', args.loss)
 
@@ -156,7 +158,8 @@ if args.resume is not None:
     optimizer.load_state_dict(state['opt'])
 
 if args.swa:
-    opt = SWA(optimizer)
+    optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=args.lr/2)
+    # opt = SWA(optimizer)
 
 if args.enorm:
     enorm = ENorm(model.encoder.named_parameters(), optimizer, model_type='conv', c=1)  # fixme, pull to arguments
@@ -188,6 +191,9 @@ if args.swa:
 
 if args.enorm:
     experiment_name += '_enorm_'
+
+if args.pseudo_label:
+    experiment_name += '_pseudo_label_'
 
 if args.backbone_weights is not None:
     experiment_name += '_backbone_weights_' + args.backbone_weights.replace('/', '_') + '_'
@@ -243,6 +249,26 @@ train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_siz
 valid_loader = DataLoader(valid_dataset, shuffle=False, batch_size=args.batch_size,
                           num_workers=8)
 
+if args.pseudo_label:
+    pseudo_ds = from_sub(
+        sub_path='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/sub_blend.csv',
+        test_mask_path='/var/ssd_1t/siim_acr_pneumo/test_masks',
+        imgs_path='/var/ssd_1t/siim_acr_pneumo/test_png/',
+        aug=aug_light
+    )
+    pseudo_loader = DataLoader(pseudo_ds, shuffle=True, batch_size=args.batch_size, num_workers=8)
+    pseudo_epoch = TrainEpoch(
+        model,
+        loss=loss,
+        metrics=metrics,
+        optimizer=optimizer,
+        device=DEVICE,
+        opt_step_size=args.opt_step_size,
+        verbose=True,
+        experiment_name=experiment_name+'_pseudo',
+        enorm=enorm
+    )
+
 max_score = 0
 
 lr = args.lr
@@ -275,6 +301,8 @@ non_best_epochs_done = 0
 
 for i in range(0, args.epochs):
     print('\nEpoch: {}'.format(i))
+    # if i % 2 == 0:
+    #     pseudo_epoch.run(pseudo_loader)
     train_logs = train_epoch.run(train_loader)
     valid_logs = valid_epoch.run(valid_loader)
 
@@ -293,6 +321,6 @@ for i in range(0, args.epochs):
     scheduler.step(fscore, i)
 
 if args.swa:
-    opt.swap_swa_sgd()
+    optimizer.swap_swa_sgd()
     valid_logs = valid_epoch.run(valid_loader)
     save_state(model.module, epoch=-1, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1)

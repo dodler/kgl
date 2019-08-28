@@ -1,0 +1,13 @@
+{
+  "comment":"efficientnet-b1_unet_Adamw_6_bce-dice_fold0_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_08_49_26/",
+  "backbone":"efficientnet-b1",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/",
+  "checkpoints":[
+    "efficientnet-b1_unet_Adamw_6_bce-dice_fold0_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_08_49_26/epoch_19.pth",
+    "efficientnet-b1_unet_Adamw_6_bce-dice_fold1_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_10_42_21/epoch_21.pth",
+    "efficientnet-b1_unet_Adamw_6_bce-dice_fold2_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_12_41_31/epoch_9.pth",
+    "efficientnet-b1_unet_Adamw_6_bce-dice_fold3_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_14_03_27/epoch_25.pth",
+    "efficientnet-b1_unet_Adamw_6_bce-dice_fold4_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_16_17_31/epoch_23.pth"
+  ]
+}

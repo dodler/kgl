@@ -1,5 +1,5 @@
 import pandas as pd
-from compress_pickle import load
+from compress_pickle import load, dump
 from tqdm import *
 import cv2
 import os.path as osp
@@ -7,29 +7,73 @@ import numpy as np
 
 import os
 
-from siim_acr_pnuemotorax.prediction_utils import fit_thresh, threshold, mask_to_rle
+from siim_acr_pnuemotorax.prediction_utils import fit_thresh, threshold, mask_to_rle, eval_thresh
 
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
+
+def custom_thresh(raw_mask):
+    o = raw_mask
+    o = np.flipud(o)
+    o = np.rot90(o, -1)
+    zz = (o > 0.5).sum()
+
+    if zz <= 0:
+        val = 0.07
+        if (o > 0.15).sum() > 0:
+            val = 0.09
+        else:
+            val = 0.03
+
+        while (o > val).sum() <= 0 and val > 0:
+            val = val - 1
+    else:
+
+        if (o > 0.85).sum() > 0:
+            val = 0.31
+        else:
+            if (o > 0.74).sum() > 0:
+                val = 0.18
+            else:
+                val = 0.14
+    return val
+
+
+vals = [
+    'val_densenet169_unet_Adamw_14_bce-dice_fold0__swa_2019-08-27_17_20_16.gz',
+    'val_efficientnet-b2_unet_Adamw_6_bce-dice_fold0__swa_backbone_weights_nih_pretrained_weights_effnetb2.pth_2019-08-12_11_31_27.gz',
+    'val_densenet121_unet_Adamw_6_bce-dice_fold0__swa_2019-08-25_11_42_52.gz',
+    'val_se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-04_21_27_56.gz',
+    'val_dpn92_unet_Adamw_6_bce-dice_fold0__swa_2019-08-23_23_51_44.gz'
+]
+
+tests = [
+    'test_densenet169_unet_Adamw_14_bce-dice_fold0__swa_2019-08-27_17_20_16.gz',
+    'test_efficientnet-b2_unet_Adamw_6_bce-dice_fold0__swa_backbone_weights_nih_pretrained_weights_effnetb2.pth_2019-08-12_11_31_27.gz',
+    'test_densenet121_unet_Adamw_6_bce-dice_fold0__swa_2019-08-25_11_42_52.gz',
+    'test_se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa__backbone_weights_nih_pretrained_weights_model.pth_2019-08-04_21_27_56.gz',
+    'test_dpn92_unet_Adamw_6_bce-dice_fold0__swa_2019-08-23_23_51_44.gz'
+]
+# tests=['test_efficientnet-b1_unet_Adamw_6_bce-dice_fold0_larger_holdout_swa_backbone_weights_nih_pretrained_weights_effnetb1.pth_2019-08-13_08_49_26.gz']
+
 if __name__ == '__main__':
 
-
     pred_path = '/var/data/siim_acr_pneumo_predicts/'
-    # blend = load(osp.join(pred_path,'val_preds_blend_5_fold_effnet_b0_unet_swa_test_fp16.pkl.gz')).astype(np.float32) / 5.0 +\
-    blend = load(osp.join(pred_path,'val_effnetb3_best_swa_adamw_swa_pa_hold.gz')).astype(np.float32) / 5.0
-    # blend = load(osp.join(pred_path,'val_efficientnet-b2_unet_Adamw_6_bce-dice_fold0__swa_backbone_weights_nih_pretrained_weights_effnetb2.pth_2019-08-12_11_31_27.gz')).astype(np.float32) / 5.0
-            # load(osp.join(pred_path,'val_preds_blend_5_fold_effnet_b1_unet_swa_test_fp16.pkl.gz')).astype(np.float32) / 5.0 + \
-            # load(osp.join(pred_path, 'val_preds_blend_5_fold_se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa__backbone_weights_nih_pretrained_weights_model_fp16.pkl.gz')).astype(np.float32)/5.0
+    blend = load(osp.join(pred_path, vals[0])).astype(np.float32) / 8.0
+    for i in range(len(vals) - 1):
+        blend += load(osp.join(pred_path, vals[i + 1])).astype(np.float32) / 5.0
 
-    # blend /= 3.0
+    blend /= float(len(vals))
 
-    # blend_test=load(osp.join(pred_path, 'raw_pred_blend_fold_effnet_b0_unet_swa_test_fp16.pkl.gz')).astype(np.float32)/5.0+\
-    # blend_test=load(osp.join(pred_path, 'test_efficientnet-b2_unet_Adamw_6_bce-dice_fold0__swa_backbone_weights_nih_pretrained_weights_effnetb2.pth_2019-08-12_11_31_27.gz')).astype(np.float32)/5.0
-    blend_test=load(osp.join(pred_path, 'test_effnetb3_best_swa_adamw_swa_pa_hold.gz')).astype(np.float32)/5.0
-               # load(osp.join(pred_path, 'raw_pred_blend_5_fold_se_resnext50_32x4d_unet_Adamw_6_bce-dice_fold0__swa__backbone_weights_nih_pretrained_weights_model_fp16.pkl.gz')).astype(np.float32)+\
-               # load(osp.join(pred_path, 'raw_pred_blend_fold_effnet_b1_unet_swa_test_fp16.pkl.gz')).astype(np.float32)/5.0
+    dump(blend.astype(np.float16), 'val_blend.gz')
 
-    # blend_test /= 3.0
+    blend_test = load(osp.join(pred_path, tests[0])).astype(np.float32) / 8.0
+
+    for i in range(len(tests) - 1):
+        blend_test += load(osp.join(pred_path, tests[i + 1])).astype(np.float32) / 5.0
+
+    blend_test /= len(tests)
+    dump(blend_test.astype(np.float16), 'test_blend.gz')
 
     non_empty_masks_path = '/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty'
     img_path = '/var/ssd_1t/siim_acr_pneumo/holdout/'
@@ -50,6 +94,8 @@ if __name__ == '__main__':
         imgs.append(img)
 
     best_score, best_thresh = fit_thresh(blend, masks)
+    # best_thresh = custom_thresh(blend)
+    # best_score = eval_thresh(blend, masks, thresh=best_thresh)
     print(best_score, best_thresh)
     sub = pd.read_csv('base_sub.csv')
     test_path = '/var/ssd_1t/siim_acr_pneumo/test_png'

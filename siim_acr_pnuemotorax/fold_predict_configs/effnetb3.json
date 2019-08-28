@@ -1,0 +1,13 @@
+{
+  "comment":"effnetb3 swa best 5 folds nih chest pretrain",
+  "backbone":"efficientnet-b3",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/effnetb3_best_swa_adamw_swa_pa_hold/",
+  "checkpoints":[
+    "epoch_11.pth",
+    "epoch_20.pth",
+    "epoch_28.pth",
+    "epoch_29.pth",
+    "epoch_31.pth"
+  ]
+}
