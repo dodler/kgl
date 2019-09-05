@@ -1,0 +1,16 @@
+{
+  "comment":"densenet121_unet_Adamw_6_bce-dice_st2",
+  "backbone":"densenet121",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/densenet121_st2",
+  "checkpoints":[
+    "epoch_26.pth",
+    "epoch_30.pth",
+    "epoch_35.pth",
+    "epoch_37.pth",
+    "epoch_39.pth",
+    "epoch_45.pth",
+    "epoch_48.pth",
+    "epoch_34.pth"
+  ]
+}

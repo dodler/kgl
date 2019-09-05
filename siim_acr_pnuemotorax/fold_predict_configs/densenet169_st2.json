@@ -1,0 +1,16 @@
+{
+  "comment":"densenet169_stage2",
+  "backbone":"densenet169",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/densenet169",
+  "checkpoints":[
+    "epoch_10.pth",
+    "epoch_20.pth",
+    "epoch_24.pth",
+    "epoch_31.pth",
+    "epoch_19.pth",
+    "epoch_22.pth",
+    "epoch_27 (1).pth",
+    "epoch_32.pth"
+  ]
+}

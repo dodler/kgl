@@ -1,6 +1,11 @@
 import sys
 
-sys.path.append('/home/lyan/Documents/enorm/enorm')
+from siim_acr_pnuemotorax.prediction_utils import DiceMetric
+
+# sys.path.append('/home/lyan/Documents/enorm/enorm')
+sys.path.append('/home/lyan/Documents/Synchronized-BatchNorm-PyTorch')
+# sys.path.append('/root/Synchronized-BatchNorm-PyTorch')
+from sync_batchnorm import convert_model
 
 import argparse
 import datetime
@@ -42,15 +47,15 @@ parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--seg-net', choices=['unet', 'fpn', 'ocunet'], default='fpn')
 parser.add_argument('--loss', choices=['bce-dice', 'lovasz', 'weighted-bce', 'focal'], default='bce-dice')
 parser.add_argument('--fold', type=int, default=0)
-parser.add_argument('--epochs', type=int, default=120)
+parser.add_argument('--epochs', type=int, default=40)
 parser.add_argument('--comment', type=str, default=None)
 parser.add_argument('--swa', action='store_true')
 
-parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/siim_acr_pneumo/train2017', required=False)
+parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/siim_acr_pneumo/train_png', required=False)
 parser.add_argument('--folds-path', type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
                     required=False)
 parser.add_argument('--mask-dir', type=str,
-                    default='/var/ssd_1t/siim_acr_pneumo/stuff_annotations_trainval2017/annotations/masks_non_empty/',
+                    default='/var/ssd_1t/siim_acr_pneumo/masks_stage2/',
                     required=False)
 parser.add_argument('--pseudo-label', action='store_true')
 parser.add_argument('--backbone-weights', type=str, default=None)
@@ -95,10 +100,13 @@ if args.backbone_weights is not None:
     pretrained_dict = {k.replace('feature_extr.', ''): v for k, v in pretrained_dict.items()
                        if k.replace('feature_extr.', '') in model_dict}
     model_dict.update(pretrained_dict)
-    # model_dict['last_linear.bias'] = None
-    # model_dict['last_linear.weight'] = None
+    if 'se_resne' in args.backbone_weights:
+        model_dict['last_linear.bias'] = None
+        model_dict['last_linear.weight'] = None
     model.encoder.load_state_dict(model_dict)
 
+if torch.cuda.device_count() > 1:
+    model = convert_model(model)
 model.to(0)
 
 
@@ -138,6 +146,7 @@ else:
 metrics = [
     smp.utils.metrics.IoUMetric(eps=1.),
     smp.utils.metrics.FscoreMetric(eps=1.),
+    DiceMetric()
 ]
 
 params = [
@@ -158,7 +167,7 @@ if args.resume is not None:
     optimizer.load_state_dict(state['opt'])
 
 if args.swa:
-    optimizer = SWA(optimizer, swa_start=10, swa_freq=5, swa_lr=args.lr/2)
+    optimizer = SWA(optimizer, swa_start=2, swa_freq=5, swa_lr=args.lr/2)
     # opt = SWA(optimizer)
 
 if args.enorm:
@@ -245,9 +254,9 @@ else:
                                               fold=args.fold)
 
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
-                          num_workers=8)
+                          num_workers=10)
 valid_loader = DataLoader(valid_dataset, shuffle=False, batch_size=args.batch_size,
-                          num_workers=8)
+                          num_workers=10)
 
 if args.pseudo_label:
     pseudo_ds = from_sub(

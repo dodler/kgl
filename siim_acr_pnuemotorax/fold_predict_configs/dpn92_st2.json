@@ -1,0 +1,16 @@
+{
+  "comment":"dpn92_unet_Adamw_6_bce-dice_st2",
+  "backbone":"dpn92",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/dpn92_st2",
+  "checkpoints":[
+    "epoch_13.pth",
+    "epoch_22.pth",
+    "epoch_26.pth",
+    "epoch_29.pth",
+    "epoch_30.pth",
+    "epoch_31.pth",
+    "epoch_43.pth",
+    "epoch_9.pth"
+  ]
+}

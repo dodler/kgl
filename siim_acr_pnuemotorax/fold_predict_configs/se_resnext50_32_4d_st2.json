@@ -1,0 +1,16 @@
+{
+  "comment":"se_resnext 32 4d swa st2",
+  "backbone":"se_resnext50_32x4d",
+  "seg_net":"unet",
+  "base_dir":"/var/data/checkpoints/resnext",
+  "checkpoints":[
+    "epoch_20.pth",
+    "epoch_27.pth",
+    "epoch_36.pth",
+    "epoch_25.pth",
+    "epoch_31.pth",
+    "epoch_32.pth",
+    "epoch_40.pth",
+    "epoch_32 (1).pth"
+  ]
+}

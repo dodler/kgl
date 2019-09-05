@@ -1,8 +1,70 @@
 import os
-
+import torch.nn as nn
 from tqdm import *
 import numpy as np
 from numba import njit, jit
+
+
+def dice(im1, im2, empty_score=1.0):
+    """
+    Computes the Dice coefficient, a measure of set similarity.
+    Parameters
+    ----------
+    im1 : array-like, bool
+        Any array of arbitrary size. If not boolean, will be converted.
+    im2 : array-like, bool
+        Any other array of identical size. If not boolean, will be converted.
+    Returns
+    -------
+    dice : float
+        Dice coefficient as a float on range [0,1].
+        Maximum similarity = 1
+        No similarity = 0
+        Both are empty (sum eq to zero) = empty_score
+
+    Notes
+    -----
+    The order of inputs for `dice` is irrelevant. The result will be
+    identical if `im1` and `im2` are switched.
+    """
+    im1 = np.asarray(im1).astype(np.bool)
+    im2 = np.asarray(im2).astype(np.bool)
+
+    if im1.shape != im2.shape:
+        raise ValueError("Shape mismatch: im1 and im2 must have the same shape.")
+
+    im_sum = im1.sum() + im2.sum()
+    if im_sum == 0:
+        return empty_score
+
+    # Compute Dice coefficient
+    intersection = np.logical_and(im1, im2)
+
+    return 2. * intersection.sum() / im_sum
+
+
+class DiceMetric(nn.Module):
+    __name__ = 'd'
+
+    def __init__(self, beta=1, eps=1e-7, threshold=0.5, activation='sigmoid'):
+        super().__init__()
+        self.activation = activation
+        self.eps = eps
+        self.threshold = threshold
+        self.beta = beta
+
+    def forward(self, pred, target):
+        smooth = 1.
+        num = pred.size(0)
+        m1 = pred.view(num, -1).float()
+        m2 = target.view(num, -1).float()
+
+        m1 = (m1>0.5).float()*1
+        m2 = (m2>0.5).float()*1
+
+        intersection = (m1 * m2).sum().float()
+
+        return (2. * intersection + smooth) / (m1.sum() + m2.sum() + smooth)
 
 
 @njit

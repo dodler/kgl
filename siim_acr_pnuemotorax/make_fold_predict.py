@@ -12,7 +12,7 @@ from tqdm import *
 from siim_acr_pnuemotorax.prediction_utils import sigmoid
 from siim_acr_pnuemotorax.segmentation.custom_unet import Unet
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from compress_pickle import dump
 
 to_tensor = transforms.ToTensor()
@@ -25,7 +25,7 @@ def from_config(config_path):
     return config
 
 
-config = from_config('fold_predict_configs/densenet169.json')
+config = from_config('fold_predict_configs/dpn92_st2.json')
 
 checkpoints_list = config['checkpoints']
 checkpoints_list = [osp.join(config['base_dir'], k) for k in checkpoints_list]
@@ -73,7 +73,7 @@ def tta(model_ft, raw_img):
 
 
 def make_predict(model_ft, target_imgs, do_tta=False):
-    result = np.zeros((len(target_imgs), 1024, 1024)).astype(np.float32)
+    result = np.zeros((len(target_imgs), 1024, 1024), dtype=np.float16)
     for i in tqdm(range(len(target_imgs))):
         if do_tta:
             result[i] = tta(model_ft, target_imgs[i])
@@ -105,9 +105,9 @@ def get_holdout_imgs(
     return result_imgs, result_masks
 
 
-def get_test_imgs(sub_path='subf93.csv'):
+def get_test_imgs(sub_path='/var/ssd_1t/siim_acr_pneumo/stage_2_sample_submission.csv'):
     sub = pd.read_csv(sub_path)
-    img_path = '/var/ssd_1t/siim_acr_pneumo/test_png'
+    img_path = '/var/ssd_1t/siim_acr_pneumo/test2'
     result_imgs = []
     for i in tqdm(range(sub.shape[0])):
         img = cv2.imread(osp.join(img_path, sub.iloc[i, 0] + '.png'))
@@ -118,25 +118,26 @@ def get_test_imgs(sub_path='subf93.csv'):
     return result_imgs
 
 
-val_imgs, masks = get_holdout_imgs()
+TTA = True
+DO_VAL_PREDICT = False
 
-TTA=True
+if DO_VAL_PREDICT:
+    val_imgs, masks = get_holdout_imgs()
+    result = np.zeros((len(val_imgs), 1024, 1024)).astype(np.float32)
+    for i, ckpt in enumerate(checkpoints_list):
+        ckpt_torch = torch.load(ckpt)
+        print('ckpt', ckpt, 'score', str(ckpt_torch['score']))
+        model.load_state_dict(ckpt_torch['net'])
+        result += make_predict(model, val_imgs, do_tta=TTA)
 
-result = np.zeros((len(val_imgs), 1024, 1024)).astype(np.float32)
-for ckpt in checkpoints_list:
-    ckpt_torch = torch.load(ckpt)
-    print('ckpt', ckpt, 'score', str(ckpt_torch['score']))
-    model.load_state_dict(ckpt_torch['net'])
-    result += make_predict(model, val_imgs, do_tta=TTA)
-
-print('dumped val result to ', 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
-dump(result.astype(np.float16), 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
+    print('dumped val result to ', 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
+    dump(result.astype(np.float16), 'val_' + checkpoints_list[0].split('/')[-2] + '.gz')
 
 test_imgs = get_test_imgs()
-result = np.zeros((len(test_imgs), 1024, 1024)).astype(np.float32)
+result = np.zeros((len(test_imgs), 1024, 1024), dtype=np.float16)
 for ckpt in checkpoints_list:
     model.load_state_dict(torch.load(ckpt)['net'])
-    result += make_predict(model, test_imgs,do_tta=TTA)
+    result += make_predict(model, test_imgs, do_tta=TTA)
 
-print('dumped test result to ', 'test_' + checkpoints_list[0].split('/')[-2] + '.gz')
-dump(result.astype(np.float16), 'test_' + checkpoints_list[0].split('/')[-2] + '.gz')
+print('dumped test result to ', 'test2_' + checkpoints_list[0].split('/')[-2] + '.gz')
+dump(result, 'test2_' + checkpoints_list[0].split('/')[-2] + '.gz')
