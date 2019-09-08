@@ -30,7 +30,7 @@ class ArcMarginProduct(nn.Module):
             cos(theta + m)
         """
 
-    def __init__(self, in_features, out_features, s=30.0, m=0.35, easy_margin=True):
+    def __init__(self, in_features, out_features, s=30.0, m=0.4, easy_margin=False):
         super(ArcMarginProduct, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
@@ -48,6 +48,9 @@ class ArcMarginProduct(nn.Module):
     def forward(self, input, label):
         # --------------------------- cos(theta) & phi(theta) ---------------------------
         cosine = F.linear(F.normalize(input), F.normalize(self.weight))
+        if label is None:
+            return cosine
+
         sine = torch.sqrt(1.0 - torch.pow(cosine, 2))
         phi = cosine * self.cos_m - sine * self.sin_m
         if self.easy_margin:
@@ -100,11 +103,10 @@ class ArcSEResnext50(nn.Module):
 
 
 class ArcEffNetb0(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes=1108):
         super(ArcEffNetb0, self).__init__()
         self.num_classes = num_classes
         self.feature_extr = EfficientNet.from_pretrained('efficientnet-b0')
-        self.metric = ArcMarginProduct(in_features=1280, out_features=num_classes)
 
         weights = torch.zeros(32, 6, 3, 3, dtype=torch.float32)
         weights[:, 0, :, :] = self.feature_extr._conv_stem.weight[:, 0, :, :]
@@ -117,15 +119,10 @@ class ArcEffNetb0(nn.Module):
         self.feature_extr._conv_stem = nn.Conv2d(6, 32, kernel_size=(3, 3), stride=(2, 2), bias=False)
         self.feature_extr._conv_stem.weight = torch.nn.Parameter(weights)
 
-    def forward(self, x, labels):
+    def forward(self, x):
         bs = x.shape[0]
         x = self.feature_extr.extract_features(x)
-        x = F.adaptive_avg_pool2d(x, output_size=(1, 1)).reshape(bs, -1)
-
-        if labels is not None:
-            return self.metric(x, labels)
-        else:
-            return F.normalize(x)
+        return F.adaptive_avg_pool2d(x, output_size=(1, 1)).reshape(bs, -1)
 
 
 class ArcResNet34(nn.Module):
@@ -163,8 +160,4 @@ class ArcResNet34(nn.Module):
 
     def forward(self, x, labels):
         x = self.feats(x)
-
-        if labels is not None:
-            return self.metric(x, labels)
-        else:
-            return F.normalize(x)
+        return x

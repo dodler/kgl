@@ -76,29 +76,29 @@ class AverageMeter(object):
         return fmtstr.format(**self.__dict__)
 
 
-def validate(loader, crit, model):
+def validate(loader, crit, model, metric):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':4.3f')
     top1 = AverageMeter('Acc@1', ':6.2f')
     top5 = AverageMeter('Acc@5', ':6.2f')
-    progress = ProgressMeter(len(loader), losses, top5,
+    progress = ProgressMeter(len(loader), losses, top1,
                              prefix='Test: ')
 
     model.eval()
+    metric.eval()
 
     with torch.no_grad():
         end = time.time()
         with open('log.txt', 'w') as log_f:
-            with tqdm(enumerate(loader), desc='validate', file=log_f) as iterator:
+            with tqdm(enumerate(loader), desc='validate', file=sys.stdout) as iterator:
                 for i, (images, target) in iterator:
                     images = images.cuda(non_blocking=True)
                     target = target.cuda(non_blocking=True)
 
-                    # compute output
-                    output = model(images, torch.zeros_like(target))
+                    feature = model(images)
+                    output = metric(feature, None)
                     loss = crit(output, target)
 
-                    # measure accuracy and record loss
                     acc1, acc5 = accuracy(output, target, topk=(1, 5))
                     losses.update(loss.item(), images.size(0))
                     top1.update(acc1[0], images.size(0))
@@ -113,17 +113,18 @@ def validate(loader, crit, model):
     return top1.avg
 
 
-def train(epoch, train_loader, model, opt, crit, enorm, use_arc_metric=False):
+def train(epoch, train_loader, model, metric, opt, crit, enorm):
     batch_time = AverageMeter('Time', ':4.3f')
     data_time = AverageMeter('Data', ':4.3f')
     losses = AverageMeter('Loss', ':4.3f')
     top1 = AverageMeter('Acc@1', ':4.2f')
     top5 = AverageMeter('Acc@5', ':4.2f')
     progress = ProgressMeter(len(train_loader), losses,
-                             top5, prefix="Epoch: [{}]".format(epoch))
+                             top1, prefix="Epoch: [{}]".format(epoch))
     i = 0
 
     model.train()
+    metric.eval()
     end = time.time()
     with open('log.txt', 'w') as log_f:
         with tqdm(train_loader, desc='train', file=sys.stdout) as iterator:
@@ -136,19 +137,19 @@ def train(epoch, train_loader, model, opt, crit, enorm, use_arc_metric=False):
                 data_input = data_input.cuda()
                 target = target.cuda()
 
-                output = model(data_input, target)
+                feature = model(data_input)
+                output = metric(feature, target)
                 loss = crit(output, target)
 
-                # measure accuracy and record loss
+                opt.zero_grad()
+                loss.backward()
+                opt.step()
+
                 acc1, acc5 = accuracy(output, target, topk=(1, 5))
                 losses.update(loss.item(), data_input.size(0))
                 top1.update(acc1[0], data_input.size(0))
                 top5.update(acc5[0], data_input.size(0))
 
-                # compute gradient and do SGD step
-                opt.zero_grad()
-                loss.backward()
-                opt.step()
                 if enorm is not None:
                     enorm.step()
 

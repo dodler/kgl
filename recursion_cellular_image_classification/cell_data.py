@@ -6,8 +6,10 @@ PRINT_FREQ = 100
 
 sys.path.append('/home/lyan/Documents/rxrx1-utils')
 
+import torchvision.transforms as transforms
 import pandas as pd
 import cv2
+import numpy as np
 
 import torch
 
@@ -39,7 +41,28 @@ class ImagesDS():
 
     def __getitem__(self, index):
         paths = [self._get_img_path(index, ch) for ch in self.channels]
-        img = torch.cat([self._load_img_as_tensor(img_path) for img_path in paths])
+        # img = torch.cat([self._load_img_as_tensor(img_path) for img_path in paths])
+
+        paths = [self._get_img_path(index, ch) for ch in self.channels]
+
+        target = {}
+        for i in range(len(paths)):
+            if i == 0:
+                prefix = 'image'
+            else:
+                prefix = 'image' + str(i)
+            img = cv2.imread(paths[i])
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            target[prefix] = img
+
+        augmented = self.aug(**target)
+        img = np.zeros((512, 512, 6), dtype=np.uint8)
+        k = list(augmented.keys())
+        for i in range(len(augmented.keys())):
+            img[:, :, i] = augmented[k[i]]
+
+        img=self.to_tensor(img)
+
         if self.mode == 'train':
             return img, int(self.records[index].sirna)
         else:
