@@ -2,9 +2,9 @@
 import torch
 import torch.nn as nn
 
-from siim_acr_pnuemotorax.segmentation.losses import lovasz_hinge, lovasz_loss_ignore_empty
-from siim_acr_pnuemotorax.segmentation.os_net import BaseOC
-from siim_acr_pnuemotorax.segmentation.basenet import create_basenet, BASENET_CHOICES
+from segmentation.segmentation import lovasz_hinge, lovasz_loss_ignore_empty
+from segmentation.segmentation import BaseOC
+from segmentation.segmentation import create_basenet, BASENET_CHOICES
 import torch.nn.functional as F
 from inplace_abn import ABN
 

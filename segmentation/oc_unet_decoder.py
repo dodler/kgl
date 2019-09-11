@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from segmentation_models_pytorch.base.model import Model
 from segmentation_models_pytorch.common.blocks import Conv2dReLU
 
-from siim_acr_pnuemotorax.segmentation.os_net import BaseOC
+from segmentation.os_net import BaseOC
 
 
 class OCDecoderBlock(nn.Module):

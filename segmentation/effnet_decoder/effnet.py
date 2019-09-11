@@ -4,12 +4,12 @@
 
 import os
 
-from siim_acr_pnuemotorax.effnet_decoder.effnet_utils import relu_fn, get_same_padding_conv2d, drop_connect, \
-    round_filters, get_model_params, load_pretrained_weights_effnet, efficientnet_params, round_repeats
-
 import torch
 from torch import nn
 from torch.nn import functional as F
+
+from segmentation.effnet_decoder.effnet_utils import get_same_padding_conv2d, drop_connect, relu_fn, get_model_params, \
+    load_pretrained_weights_effnet, efficientnet_params, round_filters, round_repeats
 
 
 class MBConvBlock(nn.Module):

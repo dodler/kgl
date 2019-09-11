@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Test UNet and create a Kaggle submission."""
 
-from siim_acr_pnuemotorax.segmentation import load_seg_model
-from siim_acr_pnuemotorax.segmentation.albs import aug_resize
-from siim_acr_pnuemotorax.segmentation.rle import toRunLength
-from siim_acr_pnuemotorax.segmentation.segm_utils import gzip_save
+from segmentation.segmentation import load_seg_model
+from segmentation.segmentation import aug_resize
+from segmentation.segmentation import toRunLength
+from segmentation.segmentation import gzip_save
 from siim_acr_pnuemotorax.siim_data import SIIMDatasetSegmentation
 
 __author__ = 'Erdene-Ochir Tuguldur, Yuan Xu'

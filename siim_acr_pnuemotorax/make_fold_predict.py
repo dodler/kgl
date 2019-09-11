@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 from tqdm import *
 
 from siim_acr_pnuemotorax.prediction_utils import sigmoid
-from siim_acr_pnuemotorax.segmentation.custom_unet import Unet
+from segmentation.segmentation import Unet
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 from compress_pickle import dump

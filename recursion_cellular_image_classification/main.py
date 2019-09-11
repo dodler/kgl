@@ -12,8 +12,8 @@ from albumentations import (
     HorizontalFlip, IAAPerspective, ShiftScaleRotate, CLAHE, RandomRotate90,
     Transpose, ShiftScaleRotate, Blur, OpticalDistortion, GridDistortion, HueSaturationValue,
     IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, RandomBrightnessContrast, IAAPiecewiseAffine,
-    IAASharpen, IAAEmboss, Flip, OneOf, Compose
-)
+    IAASharpen, IAAEmboss, Flip, OneOf, Compose,
+    Resize)
 
 sys.path.append('/home/lyan/Documents/enorm/enorm')
 
@@ -45,7 +45,9 @@ parser.add_argument('--opt', default='SGD', choices=['SGD', 'Adam', 'Adamw'], ty
 parser.add_argument('--batch-size', default=36, type=int)
 parser.add_argument('--num-workers', default=14, type=int)
 parser.add_argument('--epochs', default=500, type=int)
+parser.add_argument('--target-size', default=512, type=int)
 parser.add_argument('--resume', required=False, type=str, default=None)
+
 args = parser.parse_args()
 
 
@@ -107,31 +109,15 @@ def augment_flips_color(p=.5, n=6):
 
     return Compose([
         HorizontalFlip(),
+        OpticalDistortion(p=0.3),
         OneOf([
-            OpticalDistortion(p=0.3),
-            GridDistortion(p=.1),
-            IAAPiecewiseAffine(p=0.3),
-        ], p=0.2),
-        OneOf([
-            CLAHE(clip_limit=2),
-            IAASharpen(),
-            IAAEmboss(),
-            RandomBrightnessContrast(),
+            CLAHE(clip_limit=2, p=0.1),
         ], p=0.3),
-        OneOf([
-            IAAAdditiveGaussianNoise(),
-            GaussNoise(),
-        ], p=0.2),
-        OneOf([
-            MotionBlur(p=.2),
-            MedianBlur(blur_limit=3, p=0.1),
-            Blur(blur_limit=3, p=0.1),
-        ], p=0.2),
         ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.50, rotate_limit=10, p=.3),
     ], p=p, additional_targets=target)
 
 
-def nothing(p=.5, n=6):
+def nothing(p=1.0, n=6):
     target = {}
     for i in range(n - 1):
         target['image' + str(i)] = 'image'
@@ -144,8 +130,10 @@ device = 'cuda'
 batch_size = args.batch_size
 
 aug = augment_flips_color()
-ds_train = ImagesDS(path_data + 'split_train.csv', img_dir=path_data, aug=aug, mode='train')
-ds_valid = ImagesDS(path_data + 'valid.csv', path_data, mode='train', aug=nothing())
+ds_train = ImagesDS(path_data + 'split_train.csv', img_dir=path_data, aug=aug, mode='train',
+                    target_size=args.target_size)
+ds_valid = ImagesDS(path_data + 'valid.csv', path_data, mode='train', aug=nothing(),
+                    target_size=args.target_size)
 
 train_loader = torch.utils.data.DataLoader(ds_train, batch_size=batch_size,
                                            shuffle=True, num_workers=args.num_workers)
@@ -165,8 +153,8 @@ def save_state(model, metric, opt, top1_avg, loss, epoch, name=None):
         }
     else:
         state = {
-            'metric': metric.module.state_dict(),
-            'model': model.module.state_dict(),
+            'metric': metric.state_dict(),
+            'model': model.state_dict(),
             'opt': opt.state_dict(),
             'top1_avg': top1_avg,
             'loss': loss,

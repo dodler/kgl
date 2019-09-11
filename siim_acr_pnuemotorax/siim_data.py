@@ -11,7 +11,7 @@ import torch
 import torch.utils.data
 from torchvision import transforms
 
-from siim_acr_pnuemotorax.segmentation.albs import aug_geom_color
+from segmentation.albs import aug_geom_color
 
 kernel = np.ones((5, 5), np.uint8)
 

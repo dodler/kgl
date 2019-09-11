@@ -16,13 +16,11 @@ from torch.utils.data import DataLoader
 
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
-import torch.nn.functional as F
-
-from siim_acr_pnuemotorax.segmentation.adamw import AdamW
-from siim_acr_pnuemotorax.segmentation.albs import aug_light, aug_resize
-from siim_acr_pnuemotorax.segmentation.custom_epoch import TrainEpoch, ValidEpoch
-from siim_acr_pnuemotorax.segmentation.custom_fpn import FPN
-from siim_acr_pnuemotorax.segmentation.custom_unet import Unet
+from segmentation.segmentation import AdamW
+from segmentation.segmentation import aug_light, aug_resize
+from segmentation.custom_epoch import TrainEpoch, ValidEpoch
+from segmentation.segmentation import FPN
+from segmentation.segmentation import Unet
 # from siim_acr_pnuemotorax.segmentation.unet import lovasz_hinge
 from siim_acr_pnuemotorax.siim_data import from_folds, SIIMDatasetSegmentation, from_sub
 from torchcontrib.optim import SWA
@@ -108,28 +106,6 @@ if args.backbone_weights is not None:
 if torch.cuda.device_count() > 1:
     model = convert_model(model)
 model.to(0)
-
-
-def weighted_bce(logit_pixel, gt):
-    logit = logit_pixel.view(-1)
-    truth = gt.view(-1)
-    assert (logit.shape == truth.shape)
-
-    loss = F.binary_cross_entropy_with_logits(logit, truth, reduction='none')
-    if 0:
-        loss = loss.mean()
-    if 1:
-        pos = (truth > 0.5).float()
-        neg = (truth < 0.5).float()
-        pos_weight = pos.sum().item() + 1e-12
-        neg_weight = neg.sum().item() + 1e-12
-        loss = (0.25 * pos * loss / pos_weight + 0.75 * neg * loss / neg_weight).sum()
-
-    return loss
-
-
-def lovasz_and_dice(pred, gt):
-    return lovasz_hinge(pred, gt)
 
 
 if args.loss == 'bce-dice':

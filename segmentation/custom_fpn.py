@@ -1,8 +1,8 @@
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.fpn.decoder import FPNDecoder
 
-from siim_acr_pnuemotorax.effnet_decoder import EfficientNetEncoder
-from siim_acr_pnuemotorax.segmentation.custom_unet import EncoderDecoder
+from segmentation.custom_unet import EncoderDecoder
+from segmentation.effnet_decoder import EfficientNetEncoder
 
 
 class FPN(EncoderDecoder):
@@ -42,7 +42,6 @@ class FPN(EncoderDecoder):
                 encoder_name,
                 encoder_weights=encoder_weights
             )
-
 
         decoder = FPNDecoder(
             encoder_channels=encoder.out_shapes,

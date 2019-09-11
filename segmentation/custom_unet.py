@@ -3,9 +3,9 @@ from segmentation_models_pytorch.encoders import get_encoder
 
 import torch.nn as nn
 import torch
-from siim_acr_pnuemotorax.effnet_decoder import EfficientNetEncoder
-from siim_acr_pnuemotorax.segmentation.oc_unet_decoder import OCUnetDecoder
-from siim_acr_pnuemotorax.segmentation.unet_decoder import UnetDecoder
+from segmentation.effnet_decoder import EfficientNetEncoder
+from segmentation.oc_unet_decoder import OCUnetDecoder
+from segmentation.unet_decoder import UnetDecoder
 
 
 class EncoderDecoder(Model):

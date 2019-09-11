@@ -1,7 +1,7 @@
-from siim_acr_pnuemotorax.segmentation import segm_utils
-from siim_acr_pnuemotorax.segmentation.albs import aug_geom_color, aug_resize
-from siim_acr_pnuemotorax.segmentation.metrics import calc_metric
-from siim_acr_pnuemotorax.segmentation.segm_utils import create_lr_scheduler, create_optimizer
+from segmentation import segm_utils
+from segmentation.segmentation import aug_geom_color, aug_resize
+from segmentation.segmentation import calc_metric
+from segmentation.segmentation import create_lr_scheduler, create_optimizer
 from siim_acr_pnuemotorax.siim_data import SIIMDatasetSegmentation
 
 import time
@@ -15,7 +15,6 @@ from tqdm import tqdm, trange
 from tensorboardX import SummaryWriter
 import torch
 from torch.utils.data import DataLoader
-import torchvision.utils as vutils
 import numpy as np
 
 __author__ = 'Erdene-Ochir Tuguldur, Yuan Xu'

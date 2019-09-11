@@ -18,7 +18,10 @@ import torch
 
 
 class ImagesDS():
-    def __init__(self, csv_file, img_dir, mode='train', site=1, channels=[1, 2, 3, 4, 5, 6], aug=None):
+    def __init__(self, csv_file, img_dir, mode='train', site=1,
+                 channels=[1, 2, 3, 4, 5, 6],
+                 aug=None,
+                 target_size=512):
 
         df = pd.read_csv(csv_file)
         self.records = df.to_records(index=False)
@@ -31,6 +34,7 @@ class ImagesDS():
         self.to_tensor = transforms.ToTensor()
         self.normalize = transforms.Normalize(mean=[0.485, 0.485, 0.456, 0.456, 0.406, 0.406],
                                               std=[0.229, 0.229, 0.224, 0.224, 0.225, 0.225])
+        self.target_size=target_size
 
     def _get_img_path(self, index, channel):
         experiment, well, plate = self.records[index].experiment, self.records[index].well, self.records[index].plate
@@ -40,7 +44,7 @@ class ImagesDS():
         return self.to_tensor(cv2.imread(file_name, cv2.IMREAD_GRAYSCALE))
 
     def __getitem__(self, index):
-        paths = [self._get_img_path(index, ch) for ch in self.channels]
+        # paths = [self._get_img_path(index, ch) for ch in self.channels]
         # img = torch.cat([self._load_img_as_tensor(img_path) for img_path in paths])
 
         paths = [self._get_img_path(index, ch) for ch in self.channels]
@@ -51,12 +55,13 @@ class ImagesDS():
                 prefix = 'image'
             else:
                 prefix = 'image' + str(i)
-            img = cv2.imread(paths[i])
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = cv2.imread(paths[i], cv2.IMREAD_GRAYSCALE)
+            if self.target_size != 512:
+                img=cv2.resize(img, (self.target_size, self.target_size))
             target[prefix] = img
 
         augmented = self.aug(**target)
-        img = np.zeros((512, 512, 6), dtype=np.uint8)
+        img = np.zeros((self.target_size, self.target_size, 6), dtype=np.uint8)
         k = list(augmented.keys())
         for i in range(len(augmented.keys())):
             img[:, :, i] = augmented[k[i]]
