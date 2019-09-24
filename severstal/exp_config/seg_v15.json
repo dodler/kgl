@@ -1,0 +1,13 @@
+{
+  "backbone":"efficientnet-b0",
+  "backbone_weights":"",
+  "loss":"bce-dice",
+  "seg_net":"unet",
+  "opt":"Adamw",
+  "swa":"False",
+  "enorm":"False",
+  "opt_step_size":1,
+  "comment":"normalization fix",
+  "augs_trn":"aug_configs/aug_trn_v2.json",
+  "augs_val":"aug_configs/aug_val_v1.json"
+}

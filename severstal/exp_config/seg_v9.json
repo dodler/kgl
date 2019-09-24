@@ -1,0 +1,13 @@
+{
+  "backbone":"efficientnet-b0",
+  "backbone_weights":"/var/data/checkpoints/pretrain_2019-09-18_23_38_00/epoch_29.pth",
+  "loss":"focal",
+  "seg_net":"unet",
+  "opt":"Adamw",
+  "swa":"True",
+  "enorm":"False",
+  "opt_step_size":1,
+  "comment":"",
+  "warmup":"True",
+  "sched":"cosine"
+}

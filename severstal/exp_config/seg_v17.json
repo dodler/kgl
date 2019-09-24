@@ -1,0 +1,11 @@
+{
+  "backbone":"efficientnet-b0",
+  "backbone_weights":"",
+  "loss":"bce-dice",
+  "seg_net":"unet",
+  "opt":"Adamw",
+  "swa":"False",
+  "enorm":"False",
+  "opt_step_size":1,
+  "comment":"normalization fix, train grayscale"
+}

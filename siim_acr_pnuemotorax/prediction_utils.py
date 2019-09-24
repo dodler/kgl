@@ -44,7 +44,7 @@ def dice(im1, im2, empty_score=1.0):
 
 
 class DiceMetric(nn.Module):
-    __name__ = 'd'
+    __name__ = 'dice'
 
     def __init__(self, beta=1, eps=1e-7, threshold=0.5, activation='sigmoid'):
         super().__init__()
