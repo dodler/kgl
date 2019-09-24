@@ -16,6 +16,10 @@ warnings.filterwarnings('ignore')
 import time
 from tqdm import *
 
+from tensorboardX import SummaryWriter
+
+writer = SummaryWriter('/var/data/runs/')
+
 
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
@@ -76,7 +80,7 @@ class AverageMeter(object):
         return fmtstr.format(**self.__dict__)
 
 
-def validate(loader, crit, model, metric):
+def validate_classif(loader, crit, model, exp_name):
     batch_time = AverageMeter('Time', ':6.3f')
     losses = AverageMeter('Loss', ':4.3f')
     top1 = AverageMeter('Acc@1', ':6.2f')
@@ -85,24 +89,22 @@ def validate(loader, crit, model, metric):
                              prefix='Test: ')
 
     model.eval()
-    metric.eval()
 
     with torch.no_grad():
         end = time.time()
         with open('log.txt', 'w') as log_f:
-            with tqdm(enumerate(loader), desc='validate', file=sys.stdout) as iterator:
+            with tqdm(enumerate(loader), desc='val', file=sys.stdout) as iterator:
                 for i, (images, target) in iterator:
                     images = images.cuda(non_blocking=True)
-                    target = target.cuda(non_blocking=True)
+                    target = target.cuda(non_blocking=True).reshape(-1, 1).float()
 
-                    feature = model(images)
-                    output = metric(feature, target)
+                    output = model(images).reshape(-1, 1)
                     loss = crit(output, target)
 
-                    acc1, acc5 = accuracy(output, target, topk=(1, 5))
                     losses.update(loss.item(), images.size(0))
-                    top1.update(acc1[0], images.size(0))
-                    top5.update(acc5[0], images.size(0))
+                    m = calc_roc_auc(output, target)
+                    top1.update(m, images.size(0))
+                    # top5.update(acc5[0], images.size(0))
 
                     # measure elapsed time
                     batch_time.update(time.time() - end)
@@ -113,7 +115,7 @@ def validate(loader, crit, model, metric):
     return top1.avg
 
 
-def train(epoch, train_loader, model, metric, opt, crit, enorm):
+def train_classif(epoch, train_loader, model, opt, crit, exp_name):
     batch_time = AverageMeter('Time', ':4.3f')
     data_time = AverageMeter('Data', ':4.3f')
     losses = AverageMeter('Loss', ':4.3f')
@@ -124,7 +126,6 @@ def train(epoch, train_loader, model, metric, opt, crit, enorm):
     i = 0
 
     model.train()
-    metric.eval()
     end = time.time()
     with open('log.txt', 'w') as log_f:
         with tqdm(train_loader, desc='train', file=sys.stdout) as iterator:
@@ -135,23 +136,19 @@ def train(epoch, train_loader, model, metric, opt, crit, enorm):
 
                 data_input, target = data
                 data_input = data_input.cuda()
-                target = target.cuda()
-
-                feature = model(data_input)
-                output = metric(feature, target)
-                loss = crit(output, target)
+                target = target.cuda().reshape(-1, 1).float()
 
                 opt.zero_grad()
+                output = model(data_input).reshape(-1, 1)
+                loss = crit(output, target)
+
                 loss.backward()
                 opt.step()
 
-                acc1, acc5 = accuracy(output, target, topk=(1, 5))
+                m = calc_roc_auc(output, target)
                 losses.update(loss.item(), data_input.size(0))
-                top1.update(acc1[0], data_input.size(0))
-                top5.update(acc5[0], data_input.size(0))
-
-                if enorm is not None:
-                    enorm.step()
+                top1.update(m, data_input.size(0))
+                # top5.update(acc5[0], data_input.size(0))
 
                 batch_time.update(time.time() - end)
                 end = time.time()
@@ -161,3 +158,17 @@ def train(epoch, train_loader, model, metric, opt, crit, enorm):
 
                 i += 1
     return top1.avg, losses.avg
+
+
+import numpy as np
+from sklearn.metrics import roc_auc_score
+
+
+def calc_roc_auc(pred, gt):
+    pred = (torch.sigmoid(pred).detach().cpu().numpy() > 0.5) * 1
+    gt=gt.detach().cpu().numpy().astype(np.uint8)
+
+    pred=np.concatenate([pred.reshape(-1), np.array([0,0])])
+    gt=np.concatenate([gt.reshape(-1), np.array([1,0])])
+
+    return roc_auc_score(gt.reshape(-1), pred.reshape(-1))

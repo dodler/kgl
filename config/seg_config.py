@@ -11,4 +11,5 @@ def from_json(path):
     with open(path) as f:
         config=json.load(f)
 
-    return namedtuple("Config", config.keys())(*config.values())
+    nt = namedtuple("Config", config.keys())(*config.values())
+    return nt

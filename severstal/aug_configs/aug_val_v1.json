@@ -1,0 +1,1 @@
+{"__version__": "0.3.3", "transform": {"__class_fullname__": "albumentations.augmentations.transforms.Resize", "always_apply": false, "p": 1, "height": 256, "width": 256, "interpolation": 1}}

@@ -2,13 +2,12 @@ import sys
 
 from config.seg_config import from_json
 from segmentation.adamw import AdamW
-from segmentation.albs import aug_resize
 from segmentation.custom_fpn import FPN
 from segmentation.custom_unet import Unet
 from segmentation.losses import weighted_bce
 from segmentation.segmentation.losses import lovasz_hinge
-from severstal.augs_severstal import aug_light
-from severstal.sev_utils import load_pretrained_weights, from_folds, make_experiment_name
+from severstal.augs_severstal import aug_light, aug_resize
+from severstal.sev_utils import load_pretrained_weights, seg_from_folds
 from siim_acr_pnuemotorax.prediction_utils import DiceMetric
 import argparse
 import datetime
@@ -27,6 +26,7 @@ import os.path as osp
 
 sys.path.append('/home/lyan/Documents/Synchronized-BatchNorm-PyTorch')
 from sync_batchnorm import convert_model
+from pytorch_toolbelt.losses.focal import *
 
 NON_BEST_DONE_THRESH = 15
 
@@ -41,7 +41,7 @@ parser.add_argument('--opt-step-size', default=1, type=int)
 parser.add_argument('--resume', type=str, default=None)
 parser.add_argument('--fold', type=int, default=0)
 parser.add_argument('--num-workers', type=int, default=10)
-parser.add_argument('--epochs', type=int, default=40)
+parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--comment', type=str, default=None)
 
 parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/severstal/img_crops/', required=False)
@@ -55,7 +55,7 @@ args = parser.parse_args()
 
 conf = from_json(args.config)
 
-ENCODER = args.backbone
+ENCODER = conf.backbone
 if ENCODER == 'dpn92' or ENCODER == 'dpn68b':
     ENCODER_WEIGHTS = 'imagenet+5k'
 else:
@@ -91,7 +91,8 @@ elif conf.loss == 'lovasz':
 elif conf.loss == 'weighted-bce':
     loss = weighted_bce
 elif conf.loss == 'focal':
-    loss = FocalLoss2d()  # fixme, not working still
+    loss = BinaryFocalLoss()
+    loss.__name__ = 'bin_focal'
 else:
     raise Exception('unsupported loss', args.loss)
 
@@ -108,14 +109,14 @@ params = [
 if conf.opt == 'Adam':
     optimizer = torch.optim.Adam(params, weigth_decay=5e-4)
 elif conf.opt == 'SGD':
-    optimizer = torch.optim.SGD(params, momentum=0.9)
+    optimizer = torch.optim.SGD(params, momentum=0.9,weight_decay=5e-4)
 elif conf.opt == 'Adamw':
     optimizer = AdamW(params, weight_decay=5e-4)
 
 if args.resume is not None:
     state = torch.load(args.resume, map_location='cpu')
     model.load_state_dict(state['net'])
-    optimizer.load_state_dict(state['opt'])
+    # optimizer.load_state_dict(state['opt'])
 
 if conf.swa:
     optimizer = SWA(optimizer, swa_start=2, swa_freq=5, swa_lr=args.lr / 2)
@@ -123,7 +124,7 @@ if conf.swa:
 if torch.cuda.device_count() > 1:
     model = torch.nn.DataParallel(model)
 
-experiment_name = make_experiment_name(args, conf)
+experiment_name = args.config.replace('/','_') + datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
 train_epoch = TrainEpoch(
     model,
@@ -145,12 +146,27 @@ valid_epoch = ValidEpoch(
     experiment_name=experiment_name,
 )
 
-train_dataset, valid_dataset = from_folds(image_dir=args.image_dir,
-                                          mask_dir=args.mask_dir,
-                                          folds_path=args.folds_path,
-                                          aug_trn=aug_light,
-                                          aug_val=aug_resize,
-                                          fold=args.fold)
+aug_trn = None
+aug_val = None
+
+from albumentations.core.serialization import save, load
+
+if getattr(conf, "augs_trn", None) is not None:
+    aug_trn = load(conf.augs_trn)
+else:
+    aug_trn = aug_light
+
+if getattr(conf, "augs_val", None) is not None:
+    aug_val = load(conf.augs_val)
+else:
+    aug_val = aug_resize
+
+train_dataset, valid_dataset = seg_from_folds(image_dir=args.image_dir,
+                                              mask_dir=args.mask_dir,
+                                              folds_path=args.folds_path,
+                                              aug_trn=aug_trn,
+                                              aug_val=aug_val,
+                                              fold=args.fold)
 
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
                           num_workers=args.num_workers)
@@ -169,18 +185,32 @@ def upd_lr(opt, lr):
 upd_lr(optimizer, args.lr)
 
 
-def save_state(model, epoch, opt, lr, score, val_loss, train_loss):
+def save_state(model, epoch, opt, lr, score, val_loss, train_loss, args):
     if not osp.exists('/var/data/checkpoints/' + experiment_name):
         os.mkdir('/var/data/checkpoints/' + experiment_name)
 
-    state = {'net': model.state_dict(), 'opt': opt.state_dict(), 'epoch': epoch, 'lr': lr, 'score': score,
-             'val_loss': val_loss, 'train_loss': train_loss}
+    if torch.cuda.device_count() > 2:
+        state = {'net': model.module.state_dict(), 'opt': opt.state_dict(), 'epoch': epoch, 'lr': lr, 'score': score,
+                 'val_loss': val_loss, 'train_loss': train_loss}
+    else:
+        state = {'net': model.state_dict(), 'opt': opt.state_dict(), 'epoch': epoch, 'lr': lr, 'score': score,
+                 'val_loss': val_loss, 'train_loss': train_loss}
+
+    state.update(vars(args))
+
     filename = '/var/data/checkpoints/' + experiment_name + '/epoch_' + str(epoch) + '.pth'
     torch.save(state, filename)
     print('dumped to ', filename)
 
 
-scheduler = ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=7)
+if getattr(conf, 'sched', None) == 'cosine':
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
+else:
+    scheduler = ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=7)
+if getattr(conf, 'warmup', None) == 'True':
+    from warmup_scheduler import GradualWarmupScheduler
+    scheduler = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=10, after_scheduler=scheduler)
+
 best_metric = -1
 non_best_epochs_done = 0
 
@@ -189,10 +219,10 @@ for i in range(0, args.epochs):
     train_logs = train_epoch.run(train_loader)
     valid_logs = valid_epoch.run(valid_loader)
 
-    fscore = valid_logs['f-score']
+    fscore = valid_logs['dice']
     if fscore > best_metric:
         best_metric = fscore
-        save_state(model.module, epoch=i, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1)
+        save_state(model, epoch=i, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1, args=args)
         non_best_epochs_done = 0
     else:
         non_best_epochs_done += 1
@@ -203,7 +233,7 @@ for i in range(0, args.epochs):
 
     scheduler.step(fscore, i)
 
-if args.swa:
+if conf.swa:
     optimizer.swap_swa_sgd()
     valid_logs = valid_epoch.run(valid_loader)
-    save_state(model.module, epoch=-1, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1)
+    save_state(model, epoch=-1, opt=optimizer, lr=lr, score=fscore, val_loss=-1, train_loss=-1, args=args)

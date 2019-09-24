@@ -110,9 +110,7 @@ def augment_flips_color(p=.5, n=6):
     return Compose([
         HorizontalFlip(),
         OpticalDistortion(p=0.3),
-        OneOf([
-            CLAHE(clip_limit=2, p=0.1),
-        ], p=0.3),
+        CLAHE(clip_limit=2, p=0.1),
         ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.50, rotate_limit=10, p=.3),
     ], p=p, additional_targets=target)
 
@@ -167,7 +165,7 @@ def save_state(model, metric, opt, top1_avg, loss, epoch, name=None):
     torch.save(state, save_name)
 
 
-scheduler = ReduceLROnPlateau(opt, patience=20, mode='max', min_lr=1e-6, verbose=True)
+scheduler = ReduceLROnPlateau(opt, patience=30, mode='max', min_lr=1e-6, verbose=True)
 
 if args.resume is not None:
     start_epoch = ckpt['epoch'] + 1
