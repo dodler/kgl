@@ -78,7 +78,7 @@ experiment_name=experiment_name.replace('/','_')
 train_dataset, valid_dataset = cls_from_folds(image_dir=args.image_dir,
                                               folds_path=args.folds_path,
                                               aug_trn=aug_light_cls,
-                                              aug_val=Resize(256,1600),
+                                              aug_val=Resize(128,800),
                                               fold=args.fold)
 
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,

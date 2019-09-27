@@ -24,6 +24,8 @@ from torchcontrib.optim import SWA
 import os
 import os.path as osp
 
+from apex import amp
+
 sys.path.append('/home/lyan/Documents/Synchronized-BatchNorm-PyTorch')
 from sync_batchnorm import convert_model
 from pytorch_toolbelt.losses.focal import *
@@ -50,6 +52,7 @@ parser.add_argument('--folds-path', type=str, default='/home/lyan/Documents/kagg
 parser.add_argument('--mask-dir', type=str,
                     default='/var/ssd_1t/severstal/mask_crops/',
                     required=False)
+parser.add_argument('--opt-level', type=str, default=None, required=False, choices=['O1', 'O2'])
 parser.add_argument('--config', type=str, required=True)
 args = parser.parse_args()
 
@@ -124,7 +127,15 @@ if conf.swa:
 if torch.cuda.device_count() > 1:
     model = torch.nn.DataParallel(model)
 
-experiment_name = args.config.replace('/','_') + datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
+if args.opt_level is not None:
+    print('using opt level', args.opt_level)
+    model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
+
+experiment_name = args.config.replace('/','_')
+experiment_name += '_fold_'+str(args.fold)
+experiment_name += '_bs_'+str(args.batch_size)
+experiment_name += '_optl_'+str(args.opt_level)
+experiment_name += '_'+datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
 
 train_epoch = TrainEpoch(
     model,

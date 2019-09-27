@@ -7,7 +7,8 @@ import torchvision.transforms as transforms
 
 
 class SegData():
-    def __init__(self, img_ids, image_dir, mask_dir, aug=None):
+    def __init__(self, img_ids, image_dir, mask_dir, aug=None, progressive=False):
+        self.progressive = progressive
         self.img_ids = img_ids
         self.aug = aug
         self.image_path = image_dir
@@ -15,6 +16,8 @@ class SegData():
         self.to_tensor = transforms.ToTensor()
         # self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         self.norm = transforms.Normalize(mean=[0.34224, 0.34224, 0.34224], std=[0.13732, 0.13732, 0.13732])
+        self.prog_stp = [0.25, 0.5, 0.75]
+        self.cur_prog = 0
         # self.norm = transforms.Normalize(mean=[0.34224], std=[0.13732])
 
     def __len__(self):
@@ -27,6 +30,15 @@ class SegData():
         img = cv2.imread(img_name)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         mask = cv2.imread(mask_name, cv2.IMREAD_GRAYSCALE)
+
+        if self.progressive and self.cur_prog < len(self.prog_stp):
+            img = cv2.resize(img, dsize=None,
+                             dx=self.prog_stp[self.cur_prog],
+                             dy=self.prog_stp[self.cur_prog])
+
+            mask = cv2.resize(mask, dsize=None,
+                              dx=self.prog_stp[self.cur_prog],
+                              dy=self.prog_stp[self.cur_prog])
 
         if self.aug is not None:
             augm = self.aug(image=img, mask=mask)
@@ -46,7 +58,8 @@ class SevPretrain:
         self.labels = np.random.randint(0, 20, size=img_ids.shape[0])
 
         self.to_tensor = transforms.ToTensor()
-        self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        # self.norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        self.norm = transforms.Normalize(mean=[0.34224, 0.34224, 0.34224], std=[0.13732, 0.13732, 0.13732])
 
     def __len__(self):
         return len(self.img_ids)
@@ -56,13 +69,13 @@ class SevPretrain:
 
         img = cv2.imread(img_name)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img=cv2.resize(img, (224,224))
+        img=cv2.resize(img, (256,256))
 
         if self.aug is not None:
             augm = self.aug(image=img)
             img = augm['image']
 
-        return self.to_tensor(img), self.labels[item]
+        return self.norm(self.to_tensor(img)), self.labels[item]
 
 
 class SevClass:
@@ -79,7 +92,7 @@ class SevClass:
 
     def __getitem__(self, item):
         rle=self.df.iloc[item,1]
-        cls = isinstance(rle, str) * 1.0 # if true, than mask is present
+        cls = 1-isinstance(rle, str) * 1.0 # if true, than mask is present
         img = self.df.iloc[item, 0].split('_')[0]
 
         img_name = osp.join(self.image_dir, img)

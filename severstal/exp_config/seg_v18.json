@@ -1,10 +1,12 @@
 {
   "backbone":"efficientnet-b0",
   "backbone_weights":"",
-  "loss":"bce",
-  "opt":"Adam",
+  "loss":"bce-dice",
+  "seg_net":"unet",
+  "opt":"Adamw",
   "swa":"False",
   "enorm":"False",
   "opt_step_size":1,
-  "comment":""
+  "comment":"normalization fix",
+  "progressive":[1,4,7]
 }

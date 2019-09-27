@@ -51,8 +51,8 @@ aug_geometric = Compose([
 CLS_SIZE=256
 
 aug_light_cls = Compose([
-    Resize(256,1600),
-    # HorizontalFlip(p=0.2),
+    Resize(128,800),
+    HorizontalFlip(p=0.2),
     ShiftScaleRotate(rotate_limit=40, p=0.4, border_mode=cv2.BORDER_CONSTANT, value=0),
-    # GaussNoise(p=0.4),
+    GaussNoise(p=0.4),
 ])

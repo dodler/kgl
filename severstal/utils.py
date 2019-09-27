@@ -96,13 +96,14 @@ def validate_classif(loader, crit, model, exp_name):
             with tqdm(enumerate(loader), desc='val', file=sys.stdout) as iterator:
                 for i, (images, target) in iterator:
                     images = images.cuda(non_blocking=True)
-                    target = target.cuda(non_blocking=True).reshape(-1, 1).float()
+                    target = target.cuda(non_blocking=True)#.reshape(-1, 1).float()
 
-                    output = model(images).reshape(-1, 1)
+                    output = model(images)#.reshape(-1, 1)
                     loss = crit(output, target)
 
                     losses.update(loss.item(), images.size(0))
-                    m = calc_roc_auc(output, target)
+                    # m = calc_roc_auc(output, target)
+                    m = accuracy(output, target)[0]
                     top1.update(m, images.size(0))
                     # top5.update(acc5[0], images.size(0))
 
@@ -136,16 +137,17 @@ def train_classif(epoch, train_loader, model, opt, crit, exp_name):
 
                 data_input, target = data
                 data_input = data_input.cuda()
-                target = target.cuda().reshape(-1, 1).float()
+                target = target.cuda()#.reshape(-1, 1).float()
 
                 opt.zero_grad()
-                output = model(data_input).reshape(-1, 1)
+                output = model(data_input)#.reshape(-1, 1)
                 loss = crit(output, target)
 
                 loss.backward()
                 opt.step()
 
-                m = calc_roc_auc(output, target)
+                # m = calc_roc_auc(output, target)
+                m=accuracy(output, target)[0]
                 losses.update(loss.item(), data_input.size(0))
                 top1.update(m, data_input.size(0))
                 # top5.update(acc5[0], data_input.size(0))
@@ -165,7 +167,7 @@ from sklearn.metrics import roc_auc_score
 
 
 def calc_roc_auc(pred, gt):
-    pred = (torch.sigmoid(pred).detach().cpu().numpy() > 0.5) * 1
+    pred = torch.sigmoid(pred).detach().cpu().numpy()
     gt=gt.detach().cpu().numpy().astype(np.uint8)
 
     pred=np.concatenate([pred.reshape(-1), np.array([0,0])])

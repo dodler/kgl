@@ -60,7 +60,7 @@ class Epoch:
         pass
 
     def run(self, dataloader):
-
+        dataloader.dataset.cur_prog += 1
         global exp_writer
 
         self.on_epoch_start()
