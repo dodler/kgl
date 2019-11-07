@@ -26,11 +26,12 @@ import os.path as osp
 
 from apex import amp
 
-sys.path.append('/home/lyan/Documents/Synchronized-BatchNorm-PyTorch')
+sys.path.append('/home/lyan/Synchronized-BatchNorm-PyTorch')
+# sys.path.append('/home/lyan/Documents/Synchronized-BatchNorm-PyTorch')
 from sync_batchnorm import convert_model
 from pytorch_toolbelt.losses.focal import *
 
-NON_BEST_DONE_THRESH = 15
+NON_BEST_DONE_THRESH = 50
 
 parser = argparse.ArgumentParser(description='Severstal segmentation train')
 
@@ -45,12 +46,11 @@ parser.add_argument('--fold', type=int, default=0)
 parser.add_argument('--num-workers', type=int, default=10)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--comment', type=str, default=None)
-
-parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/severstal/img_crops/', required=False)
+parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/severstal/img_crops_4cls/', required=False)
 parser.add_argument('--folds-path', type=str, default='/home/lyan/Documents/kaggle/severstal/crop_folds.csv',
                     required=False)
 parser.add_argument('--mask-dir', type=str,
-                    default='/var/ssd_1t/severstal/mask_crops/',
+                    default='/var/ssd_1t/severstal/mask_crops_4cls/',
                     required=False)
 parser.add_argument('--opt-level', type=str, default=None, required=False, choices=['O1', 'O2'])
 parser.add_argument('--config', type=str, required=True)
@@ -69,11 +69,11 @@ CLASSES = ['pneumo']
 ACTIVATION = 'sigmoid'
 
 if conf.seg_net == 'fpn':
-    model = FPN(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION)
+    model = FPN(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=4, activation=ACTIVATION)
 elif conf.seg_net == 'unet':
-    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION)
+    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=4, activation=ACTIVATION)
 elif conf.seg_net == 'ocunet':
-    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=1, activation=ACTIVATION,
+    model = Unet(encoder_name=ENCODER, encoder_weights=ENCODER_WEIGHTS, classes=4, activation=ACTIVATION,
                  use_oc_module=True)
 else:
     raise Exception('unsupported' + str(args.seg_net))
@@ -132,7 +132,7 @@ if args.opt_level is not None:
     model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
 
 experiment_name = args.config.replace('/','_')
-experiment_name += '_fold_'+str(args.fold)
+experiment_name += '_4cls_fold_'+str(args.fold)
 experiment_name += '_bs_'+str(args.batch_size)
 experiment_name += '_optl_'+str(args.opt_level)
 experiment_name += '_'+datetime.datetime.now().strftime("%Y-%m-%d_%H_%M_%S")
@@ -179,6 +179,7 @@ train_dataset, valid_dataset = seg_from_folds(image_dir=args.image_dir,
                                               aug_val=aug_val,
                                               fold=args.fold)
 
+print('dataset len', len(train_dataset), len(valid_dataset))
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
                           num_workers=args.num_workers)
 valid_loader = DataLoader(valid_dataset, shuffle=False, batch_size=args.batch_size,
@@ -217,7 +218,7 @@ def save_state(model, epoch, opt, lr, score, val_loss, train_loss, args):
 if getattr(conf, 'sched', None) == 'cosine':
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
 else:
-    scheduler = ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=7)
+    scheduler = ReduceLROnPlateau(optimizer, verbose=True, mode='max', patience=20)
 if getattr(conf, 'warmup', None) == 'True':
     from warmup_scheduler import GradualWarmupScheduler
     scheduler = GradualWarmupScheduler(optimizer, multiplier=8, total_epoch=10, after_scheduler=scheduler)

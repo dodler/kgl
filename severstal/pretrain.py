@@ -5,6 +5,7 @@ from collections import OrderedDict
 from catalyst.dl.runner import SupervisedRunner
 import numpy as np
 import pandas as pd
+from catalyst.dl.callbacks import EarlyStoppingCallback, AccuracyCallback
 
 from severstal.sev_data import SevPretrain
 
@@ -50,7 +51,7 @@ train_dataset = SevPretrain(img_ids=pretrain, image_dir=args.image_dir, aug=None
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size,
                           num_workers=args.num_workers)
 
-lr = 0.1
+lr = 0.0001
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(model.parameters(), lr=lr, weight_decay=5e-4, momentum=0.9)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=5)
@@ -70,5 +71,9 @@ runner.train(
     loaders=loaders,
     logdir=logdir,
     num_epochs=num_epochs,
+    callbacks=[
+        AccuracyCallback(accuracy_args=[1]),
+        EarlyStoppingCallback(patience=10, min_delta=0.01)
+    ],
     verbose=True
 )

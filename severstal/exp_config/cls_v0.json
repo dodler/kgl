@@ -2,7 +2,7 @@
   "backbone":"efficientnet-b0",
   "backbone_weights":"",
   "loss":"bce",
-  "opt":"Adam",
+  "opt":"SGD",
   "swa":"False",
   "enorm":"False",
   "opt_step_size":1,

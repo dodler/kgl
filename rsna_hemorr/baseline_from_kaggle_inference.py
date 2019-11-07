@@ -1,141 +1,97 @@
-import sys
-
-from rsna_hemorr.hem_augs import transform_train, transform_test
-from rsna_hemorr.hem_data import IntracranialDataset
-import glob
-import os
+import argparse
 
 import numpy as np
 import pandas as pd
 import torch
 import torch.optim as optim
-from albumentations import Compose, VerticalFlip, HorizontalFlip
-from albumentations.pytorch import ToTensor
-from apex import amp
-from efficientnet_pytorch import EfficientNet
 from torch.utils.data import Dataset
-from tqdm import tqdm_notebook as tqdm
+from tqdm import *
 
+from rsna_hemorr.hem_augs import get_png_tta, get_raw_tta
+from rsna_hemorr.hem_data import IntracranialDatasetRaw, IntracranialDataset
+from rsna_hemorr.hem_utils import get_model
+from rsna_hemorr.losses import FocalLoss
 
-dir_csv = '../input/rsna-intracranial-hemorrhage-detection'
-dir_train_img = '../input/rsna-train-stage-1-images-png-224x/stage_1_train_png_224x'
-dir_test_img = '../input/rsna-test-stage-1-images-png-224x/stage_1_test_png_224x'
+dir_csv = '/var/ssd_1t/rsna_intra_hemorr/'
 
 n_classes = 6
 n_epochs = 5
-batch_size = 128
+batch_size = 64
 
-train = pd.read_csv(os.path.join(dir_csv, 'stage_1_train.csv'))
-test = pd.read_csv(os.path.join(dir_csv, 'stage_1_sample_submission.csv'))
+test = pd.read_csv('test.csv')
 
-train[['ID', 'Image', 'Diagnosis']] = train['ID'].str.split('_', expand=True)
-train = train[['Image', 'Diagnosis', 'Label']]
-train.drop_duplicates(inplace=True)
-train = train.pivot(index='Image', columns='Diagnosis', values='Label').reset_index()
-train['Image'] = 'ID_' + train['Image']
-print(train.head())
+parser = argparse.ArgumentParser(description='rsna hemorr train')
 
-png = glob.glob(os.path.join(dir_train_img, '*.png'))
-png = [os.path.basename(png)[:-4] for png in png]
-png = np.array(png)
+parser.add_argument('--image-path', type=str, default=None)
+parser.add_argument('--resume', type=str, default=None)
+parser.add_argument('--model', type=str, required=True)
+parser.add_argument('--raw', action='store_true')
+args = parser.parse_args()
 
-train = train[train['Image'].isin(png)]
-train.to_csv('train.csv', index=False)
 
-# Also prepare the test data
+def predict_tfm(tfm):
+    if args.raw:
+        ds = IntracranialDatasetRaw(test, path=args.image_path, transform=tfm, labels=False)
+    else:
+        ds = IntracranialDataset(test, path=args.image_path, transform=tfm, labels=False)
+    dl = torch.utils.data.DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=4)
 
-test[['ID', 'Image', 'Diagnosis']] = test['ID'].str.split('_', expand=True)
-test['Image'] = 'ID_' + test['Image']
-test = test[['Image', 'Label']]
-test.drop_duplicates(inplace=True)
+    result = np.zeros((len(ds) * n_classes, 1))
 
-test.to_csv('test.csv', index=False)
+    for i, x_batch in enumerate(tqdm(dl)):
+        x_batch = x_batch.to(device, dtype=torch.float)
 
-train_dataset = IntracranialDataset(
-    csv_file='train.csv', path=dir_train_img, transform=transform_train, labels=True)
+        with torch.no_grad():
+            pred = model(x_batch)
 
-test_dataset = IntracranialDataset(
-    csv_file='test.csv', path=dir_test_img, transform=transform_test, labels=False)
+            result[(i * batch_size * n_classes):((i + 1) * batch_size * n_classes)] = torch.sigmoid(
+                pred).detach().cpu().reshape((len(x_batch) * n_classes, 1))
 
-data_loader_train = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
-data_loader_test = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
+    return result
 
-transform_test_hf = Compose([
-    HorizontalFlip(p=1, always_apply=True),
-    ToTensor()
-])
-
-test_dataset_hf = IntracranialDataset(
-    csv_file='test.csv', path=dir_test_img, transform=transform_test_hf, labels=False)
-
-data_loader_test_hf = torch.utils.data.DataLoader(test_dataset_hf, batch_size=batch_size, shuffle=False, num_workers=4)
-
-transform_test_vf = Compose([
-    VerticalFlip(p=1, always_apply=True),
-    ToTensor()
-])
-
-test_dataset_vf = IntracranialDataset(
-    csv_file='test.csv', path=dir_test_img, transform=transform_test_vf, labels=False)
-
-data_loader_test_vf = torch.utils.data.DataLoader(test_dataset_vf, batch_size=batch_size, shuffle=False, num_workers=4)
 
 device = torch.device("cuda:0")
-model = EfficientNet.from_pretrained('efficientnet-b2')
-model._fc = torch.nn.Linear(1408, n_classes)
 
+model = get_model(args.model, raw=args.raw)
 model.to(device)
 
+criterion = FocalLoss()
 plist = [{'params': model.parameters(), 'lr': 2e-5}]
 optimizer = optim.Adam(plist, lr=2e-5)
-
+from apex import amp
 model, optimizer = amp.initialize(model, optimizer, opt_level="O1")
-model.load_state_dict(sys.argv[1])
+
+
+print('loading state dict', args.resume)
+
+# if 'model' in
+checkpoint = torch.load(args.resume)
+if 'model' in checkpoint:
+    model_state_dict = checkpoint['model']
+else:
+    model_state_dict = checkpoint['model_state_dict']
+
+model.load_state_dict(model_state_dict)
 
 for param in model.parameters():
     param.requires_grad = False
 
 model.eval()
 
-test_pred = np.zeros((len(test_dataset) * n_classes, 1))
 
-for i, x_batch in enumerate(tqdm(data_loader_test)):
-    x_batch = x_batch["image"]
-    x_batch = x_batch.to(device, dtype=torch.float)
+if args.raw:
+    tta_transforms = get_raw_tta()
+else:
+    tta_transforms = get_png_tta()
 
-    with torch.no_grad():
-        pred = model(x_batch)
+test_pred = predict_tfm(tta_transforms[0])
+for tta_tfm in tta_transforms[1:]:
+    test_pred += predict_tfm(tta_tfm)
 
-        test_pred[(i * batch_size * n_classes):((i + 1) * batch_size * n_classes)] = torch.sigmoid(
-            pred).detach().cpu().reshape((len(x_batch) * n_classes, 1))
+test_pred /= float(len(tta_transforms))
 
-test_pred_vf = np.zeros((len(test_dataset) * n_classes, 1))
 
-for i, x_batch in enumerate(tqdm(data_loader_test_vf)):
-    x_batch = x_batch["image"]
-    x_batch = x_batch.to(device, dtype=torch.float)
-
-    with torch.no_grad():
-        pred = model(x_batch)
-
-        test_pred_vf[(i * batch_size * n_classes):((i + 1) * batch_size * n_classes)] = torch.sigmoid(
-            pred).detach().cpu().reshape((len(x_batch) * n_classes, 1))
-
-test_pred_hf = np.zeros((len(test_dataset) * n_classes, 1))
-
-for i, x_batch in enumerate(tqdm(data_loader_test_hf)):
-    x_batch = x_batch["image"]
-    x_batch = x_batch.to(device, dtype=torch.float)
-
-    with torch.no_grad():
-        pred = model(x_batch)
-
-        test_pred_hf[(i * batch_size * n_classes):((i + 1) * batch_size * n_classes)] = torch.sigmoid(
-            pred).detach().cpu().reshape((len(x_batch) * n_classes, 1))
-
-test_pred = (test_pred + test_pred_hf + test_pred_vf) / 3.0
-
-submission = pd.read_csv(os.path.join(dir_csv, 'stage_1_sample_submission.csv'))
+submission = pd.read_csv('stage_1_sample_submission.csv')
 submission = pd.concat([submission.drop(columns=['Label']), pd.DataFrame(test_pred)], axis=1)
 submission.columns = ['ID', 'Label']
 

@@ -140,7 +140,7 @@ def fit_thresh(preds, masks):
     n = 20
     best_score = 0
     while score_delta > delta_thresh:
-        print('iterating, left=', left, 'right=', right, 'score_delta=', score_delta, 'best score', best_score)
+        print('iterating, lyft=', left, 'right=', right, 'score_delta=', score_delta, 'best score', best_score)
         m = np.zeros(n)
         x = np.linspace(left, right, n)
         for i in tqdm(range(n)):

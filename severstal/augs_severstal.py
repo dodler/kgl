@@ -47,12 +47,16 @@ aug_geometric = Compose([
         OpticalDistortion(p=1, distort_limit=1, shift_limit=0.5)
     ], p=0.8)])
 
-
-CLS_SIZE=256
+CLS_SIZE = 256
 
 aug_light_cls = Compose([
-    Resize(128,800),
+    Resize(256, 1600),
     HorizontalFlip(p=0.2),
-    ShiftScaleRotate(rotate_limit=40, p=0.4, border_mode=cv2.BORDER_CONSTANT, value=0),
-    GaussNoise(p=0.4),
+    # ShiftScaleRotate(rotate_limit=40, p=0.4, border_mode=cv2.BORDER_CONSTANT, value=0),
+    # GaussNoise(p=0.4),
+    # OneOf([
+    #     ElasticTransform(p=0.5, alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
+    #     GridDistortion(p=0.5),
+    #     OpticalDistortion(p=1, distort_limit=1, shift_limit=0.5)
+    # ], p=0.8)
 ])

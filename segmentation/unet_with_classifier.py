@@ -3,6 +3,7 @@ from segmentation_models_pytorch.encoders import get_encoder
 
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 from segmentation.effnet_decoder import EfficientNetEncoder
 # from segmentation.oc_unet_decoder import OCUnetDecoder
 from segmentation.unet_decoder import UnetDecoder
@@ -40,7 +41,7 @@ class EncoderDecoder(Model):
         return x
 
 
-class Unet(EncoderDecoder):
+class UnetWithClassifier(EncoderDecoder):
     """Unet_ is a fully convolution neural network for image semantic segmentation
 
     Args:
@@ -90,12 +91,34 @@ class Unet(EncoderDecoder):
         )
 
         super().__init__(encoder, decoder, activation)
+        self.linear = torch.nn.Linear(encoder.out_shapes[0], classes)
 
         self.name = 'u-{}'.format(encoder_name)
+
+    def forward(self, seg_features):
+        x=seg_features
+        x = self.encoder(x)
+
+        pool_x = F.adaptive_avg_pool2d(x[0], (1, 1)).reshape(x[0].shape[0], -1)
+        cls_pred = self.linear(pool_x)
+
+        x = self.decoder(x)
+        return cls_pred, x
+
+    def predict(self, x):
+        if self.training:
+            self.eval()
+
+        with torch.no_grad():
+            cls_pred, x = self.forward(x)
+            x = self.activation(x)
+
+        return cls_pred, x
 
 
 if __name__ == '__main__':
     ACTIVATION = 'sigmoid'
-    model = Unet(encoder_name='efficientnet-b5', encoder_weights='imagenet', classes=1, activation=ACTIVATION)
+    model = UnetWithClassifier(encoder_name='efficientnet-b0', encoder_weights='imagenet', classes=4,
+                               activation=ACTIVATION)
     # model = Unet(encoder_name='resnet18', encoder_weights='imagenet', classes=1, activation=ACTIVATION)
-    model(torch.zeros(1, 3, 1024, 1024))
+    model(torch.zeros(1, 3, 128, 128))
