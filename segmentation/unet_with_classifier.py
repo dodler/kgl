@@ -105,7 +105,8 @@ class UnetWithClassifier(EncoderDecoder):
         x = self.decoder(x)
         return cls_pred, x
 
-    def predict(self, x):
+    def predict(self, seg_features):
+        x=seg_features
         if self.training:
             self.eval()
 

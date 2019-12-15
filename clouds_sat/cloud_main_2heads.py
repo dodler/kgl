@@ -1,5 +1,5 @@
 import argparse
-
+import torch.nn as nn
 import numpy as np
 import segmentation_models_pytorch as smp
 import torch
@@ -12,6 +12,7 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
+import torch.nn.functional as F
 from clouds_sat.cloud_data import ds2heads_from_folds
 from segmentation.custom_fpn import FPN
 from segmentation.unet_with_classifier import UnetWithClassifier
@@ -32,12 +33,12 @@ parser.add_argument('--swa', action='store_true')
 parser.add_argument('--width', type=int, default=640)
 parser.add_argument('--height', type=int, default=320)
 
-parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/siim_acr_pneumo/train_png', required=False)
+# parser.add_argument('--image-dir', type=str, default='/var/ssd_1t/siim_acr_pneumo/train_png', required=False)
 parser.add_argument('--folds-path', type=str, default='/home/lyan/Documents/kaggle/siim_acr_pnuemotorax/folds.csv',
                     required=False)
-parser.add_argument('--mask-dir', type=str,
-                    default='/var/ssd_1t/siim_acr_pneumo/masks_stage2/',
-                    required=False)
+# parser.add_argument('--mask-dir', type=str,
+#                     default='/var/ssd_1t/siim_acr_pneumo/masks_stage2/',
+#                     required=False)
 parser.add_argument('--model', type=str, choices=['densenet121', 'densenet169', 'densenet201',
                                                   'densenet161', 'dpn68', 'dpn68b',
                                                   'dpn92', 'dpn98', 'dpn107', 'dpn131',
@@ -85,7 +86,7 @@ loaders = {
 }
 
 num_epochs = 40
-logdir = "/var/data/cloud/segmentation__2heads_f" + str(args.fold)+'_model_'+str(args.model)
+logdir = "/var/data/cloud/segmentation__2heads_f" + str(args.fold) + '_model_' + str(args.model)
 
 optimizer = AdamW([
     {'params': model.decoder.parameters(), 'lr': args.lr},
@@ -95,8 +96,46 @@ scheduler = ReduceLROnPlateau(optimizer, factor=0.15, patience=5)
 
 loss_cls = torch.nn.BCEWithLogitsLoss()
 
+
+def dice_loss(input, target):
+    input = torch.sigmoid(input)
+    smooth = 1.0
+    iflat = input.view(-1)
+    tflat = target.view(-1)
+    intersection = (iflat * tflat).sum()
+    return (2.0 * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth)
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma):
+        super().__init__()
+        self.gamma = gamma
+
+    def forward(self, input, target):
+        if not (target.size() == input.size()):
+            raise ValueError("Target size ({}) must be the same as input size ({})"
+                             .format(target.size(), input.size()))
+        max_val = (-input).clamp(min=0)
+        loss = input - input * target + max_val + \
+               ((-max_val).exp() + (-input - max_val).exp()).log()
+        invprobs = F.logsigmoid(-input * (target * 2.0 - 1.0))
+        loss = (invprobs * self.gamma).exp() * loss
+        return loss.mean()
+
+
+class MixedLoss(nn.Module):
+    def __init__(self, alpha=0.3, gamma=2.0):
+        super().__init__()
+        self.alpha = alpha
+        self.focal = FocalLoss(gamma)
+
+    def forward(self, input, target):
+        loss = self.alpha * self.focal(input, target) - torch.log(dice_loss(input, target))
+        return loss.mean()
+
+
 criterion = {
-    "cls": torch.nn.BCEWithLogitsLoss(),
+    "cls": MixedLoss(),
     "seg": smp.utils.losses.BCEDiceLoss(eps=1.),
 }
 
@@ -135,7 +174,7 @@ callbacks = [
                         output_key="cls_logits",
                         list_args=['_']),
     DiceCallback(input_key="seg_targets",
-                 output_key="seg_logits",),
+                 output_key="seg_logits", ),
     EarlyStoppingCallback(patience=10, min_delta=0.001)
 ]
 

@@ -186,13 +186,15 @@ def valid_aug_crop(crop_size=256):
     return albu.Compose(test_transform)
 
 
-def get_training_augmentation(width=640, height=320):
+def get_training_augmentation(width=525, height=350):
     train_transform = [
+        albu.Resize(height=1024, width=704),
+        # albu.PadIfNeeded(min_height=640, min_width=480),
         albu.HorizontalFlip(p=0.5),
         albu.ShiftScaleRotate(scale_limit=0.5, rotate_limit=0, shift_limit=0.1, p=0.5, border_mode=0),
         albu.GridDistortion(p=0.5),
         albu.OpticalDistortion(p=0.5, distort_limit=2, shift_limit=0.5),
-        albu.Resize(width=width, height=height)
+        # albu.Resize(width=width, height=height)
         # albu.Resize(1050, 700),
         # albu.RandomCrop(672,672),
         #
@@ -203,7 +205,8 @@ def get_training_augmentation(width=640, height=320):
 def get_validation_augmentation(width=640, height=320):
     """Add paddings to make image shape divisible by 32"""
     test_transform = [
-        albu.Resize(width=width, height=height)
+        albu.Resize(height=1024, width=704),
+        # albu.PadIfNeeded(min_height=640, min_width=480),
     ]
     return albu.Compose(test_transform)
 

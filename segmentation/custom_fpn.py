@@ -1,3 +1,4 @@
+import torch
 from segmentation_models_pytorch.encoders import get_encoder
 from segmentation_models_pytorch.fpn.decoder import FPNDecoder
 
@@ -53,4 +54,5 @@ class FPN(EncoderDecoder):
 
         super().__init__(encoder, decoder, activation)
 
+        self.linear = torch.nn.Linear(encoder.out_shapes[0], classes)
         self.name = 'fpn-{}'.format(encoder_name)
