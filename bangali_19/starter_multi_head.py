@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 
 from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_utils import bengali_ds_from_folds
+from bangali_19.configs import get_config
 
 parser = argparse.ArgumentParser(description='Understanding cloud training')
 
@@ -18,28 +19,25 @@ parser.add_argument('--lr',
                     default=1e-4,
                     type=float,
                     help='learning rate')
-parser.add_argument('--batch-size', default=4, type=int)
+parser.add_argument('--batch-size', default=256, type=int)
 parser.add_argument('--fold', type=int, default=0)
-parser.add_argument('--epochs', type=int, default=40)
-parser.add_argument('--comment', type=str, default=None)
-parser.add_argument('--swa', action='store_true')
-parser.add_argument('--model', type=str, choices=['densenet121', 'densenet169', 'densenet201',
-                                                  'densenet161', 'dpn68', 'dpn68b',
-                                                  'dpn92', 'dpn98', 'dpn107', 'dpn131',
-                                                  'inceptionresnetv2', 'resnet101', 'resnet152',
-                                                  'se_resnet101', 'se_resnet152',
-                                                  'se_resnext50_32x4d', 'se_resnext101_32x4d',
-                                                  'senet154', 'se_resnet50', 'resnet50', 'resnet34',
-                                                  'efficientnet-b0', 'efficientnet-b1',
-                                                  'efficientnet-b2', 'efficientnet-b3',
-                                                  'efficientnet-b4', 'efficientnet-b5'],
-                    default='efficientnet-b0')
+parser.add_argument('--epochs', type=int, default=100)
+parser.add_argument('--comment', type=str, default='')
+parser.add_argument('--config', type=str, required=True, default=None)
 parser.add_argument('--fp16', action='store_true')
 args = parser.parse_args()
 
-model = BengEffNetClassifier()
+config = get_config(name=args.config)
 
-num_workers = 10
+if config['arch'] == 'multi-head':
+    model = BengEffNetClassifier(
+        name=config['backbone'],
+        pretrained=config['pretrained']
+    )
+else:
+    raise Exception(config['arch'] + ' is not supported')
+
+num_workers = 6
 bs = args.batch_size
 
 train_dataset, valid_dataset = bengali_ds_from_folds(folds_path='/home/lyan/Documents/kaggle/bangali_19/folds.csv')
@@ -53,11 +51,13 @@ loaders = {
 }
 
 num_epochs = 40
-logdir = "/var/data/bengali" + str(args.fold) + '_model_' + str(args.model)+'_comment_'+args.comment
+logdir = "/var/data/bengali" + str(args.fold) + '_config_' + str(args.config) + '_comment_' + args.comment
 
-optimizer = AdamW(params=model.parameters(), lr=args.lr)
+if config['opt'] == 'adamw':
+    optimizer = AdamW(params=model.parameters(), lr=args.lr)
+else:
+    raise Exception(config['opt'] + ' is not supported')
 scheduler = ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
-
 
 criterion = {
     "h1": torch.nn.CrossEntropyLoss(),
@@ -66,7 +66,6 @@ criterion = {
 }
 
 runner = SupervisedRunner(input_key='features', output_key=["h1_logits", "h2_logits", 'h3_logits'])
-
 
 callbacks = [
     CriterionCallback(
@@ -90,7 +89,7 @@ callbacks = [
     CriterionAggregatorCallback(
         prefix="loss",
         loss_keys=["loss_h1", "loss_h2", 'loss_h3'],
-        loss_aggregate_fn="sum"  # or "mean"
+        loss_aggregate_fn=config['loss_aggregate_fn']  # or "mean"
     ),
     AccuracyCallback(input_key='h1_targets', output_key='h1_logits', prefix='acc_h1_'),
     AccuracyCallback(input_key='h2_targets', output_key='h2_logits', prefix='acc_h2_'),

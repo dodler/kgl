@@ -29,18 +29,27 @@ class BengEffNetClassifier(nn.Module):
 
         params = efficientnet_params(model_name=name)
         Conv2d = get_same_padding_conv2d(image_size=params[2])
-        self.net._conv_stem = Conv2d(1, 32, kernel_size=(3, 3), stride=(2, 2), bias=False)
+        conv_stem_filts = {
+            'efficientnet-b0': 32,
+            'efficientnet-b4': 48,
+        }
 
-        self.cls1 = nn.Linear(1280, 168)
-        self.cls2 = nn.Linear(1280, 11)
-        self.cls3 = nn.Linear(1280, 7)
+        linear_size = {
+            'efficientnet-b0':1280,
+            'efficientnet-b4':1792
+        }
+        self.net._conv_stem = Conv2d(1, conv_stem_filts[name], kernel_size=(3, 3), stride=(2, 2), bias=False)
+
+        self.cls1 = nn.Linear(linear_size[name], 168)
+        self.cls2 = nn.Linear(linear_size[name], 11)
+        self.cls3 = nn.Linear(linear_size[name], 7)
 
         if input_bn:
             self.bn_in = nn.BatchNorm2d(1)
 
 
 if __name__ == '__main__':
-    net = BengEffNetClassifier()
+    net = BengEffNetClassifier(name='efficientnet-b4')
     print(net.net)
 
     inp = torch.randn(2, 1, 224, 224)
