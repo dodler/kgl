@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import cv2
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, ExponentialLR, CyclicLR, \
+    CosineAnnealingWarmRestarts
 
 from bangali_19.beng_augs import train_aug_v0, valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
@@ -51,6 +53,41 @@ def bengali_ds_from_folds(img_path='/var/ssd_1t/kaggle_bengali/jpeg_crop/',
     valid_dataset = BengaliDataset(path=img_path, values=valid_ids, aug=valid_aug)
 
     return train_dataset, valid_dataset
+
+
+def get_dict_value_or_default(dict_, key, default_value):
+    if key in dict_:
+        return dict_[key]
+    else:
+        return default_value
+
+
+def make_scheduler_from_config(optimizer, config):
+    if 'schedule' in config:
+        if config['schedule'] == 'reduce_lr_on_plateau':
+            return ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
+        elif config['schedule'] == 'cosine_annealing_warm_restarts':
+            T_0 = get_dict_value_or_default(dict_=config, key='T_0', default_value=4)
+            return CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=T_0)
+        elif config['schedule'] == 'cosine_annealing':
+            return CosineAnnealingLR(optimizer, T_max=4)
+        elif config['schedule'] == 'exponential':
+            return ExponentialLR(optimizer, gamma=0.99)
+        elif config['schedule'] == 'cyclic':
+
+            max_lr = get_dict_value_or_default(config, 'max_lr', 1e-1)
+            base_lr = get_dict_value_or_default(config, 'base_lr', 1e-4)
+            step_size_down = get_dict_value_or_default(config, 'step_size_down', 2000)
+            mode = get_dict_value_or_default(config, 'cycle_mode', 'triangular')
+
+            return CyclicLR(optimizer,
+                            base_lr=base_lr,
+                            max_lr=max_lr,
+                            step_size_down=step_size_down,
+                            mode=mode)
+        raise Exception('check your config, config not supported')
+    else:
+        return ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
 
 
 if __name__ == '__main__':

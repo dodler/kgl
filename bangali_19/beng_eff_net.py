@@ -32,11 +32,13 @@ class BengEffNetClassifier(nn.Module):
         conv_stem_filts = {
             'efficientnet-b0': 32,
             'efficientnet-b4': 48,
+            'efficientnet-b7': 64,
         }
 
         linear_size = {
-            'efficientnet-b0':1280,
-            'efficientnet-b4':1792
+            'efficientnet-b0': 1280,
+            'efficientnet-b4': 1792,
+            'efficientnet-b7': 2560
         }
         self.net._conv_stem = Conv2d(1, conv_stem_filts[name], kernel_size=(3, 3), stride=(2, 2), bias=False)
 
@@ -49,7 +51,7 @@ class BengEffNetClassifier(nn.Module):
 
 
 if __name__ == '__main__':
-    net = BengEffNetClassifier(name='efficientnet-b4')
+    net = BengEffNetClassifier(name='efficientnet-b7')
     print(net.net)
 
     inp = torch.randn(2, 1, 224, 224)

@@ -1,3 +1,4 @@
+import argparse
 import torch
 from torch.utils.data import DataLoader
 from tqdm import *
@@ -9,9 +10,38 @@ from bangali_19.beng_data import BengaliDataset
 from bangali_19.beng_eff_net import BengEffNetClassifier
 import numpy as np
 
-ckpt = torch.load('/var/data/bengali0_model_efficientnet-b0_comment_bn_and_pretrain/checkpoints//train.30.pth')[
-    'model_state_dict']
-model = BengEffNetClassifier()
+from bangali_19.beng_resnets import BengResnet
+from bangali_19.configs import get_config
+
+parser = argparse.ArgumentParser(description='Understanding cloud training')
+
+parser.add_argument('--batch-size', default=256, type=int)
+parser.add_argument('--config', type=str, required=True, default=None)
+parser.add_argument('--ckpt', type=str, required=True, default=None)
+args = parser.parse_args()
+
+# /var/data/bengali0_model_efficientnet-b0_comment_bn_and_pretrain/checkpoints//train.30.pth
+ckpt = torch.load(args.ckpt)['model_state_dict']
+
+config = get_config(name=args.config)
+if config['arch'] == 'multi-head':
+    if 'efficientnet' in config['backbone']:
+        model = BengEffNetClassifier(
+            name=config['backbone'],
+            pretrained=config['pretrained'],
+            input_bn=config['in-bn']
+        )
+    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
+        model = BengResnet(
+            name=config['backbone'],
+            pretrained=config['pretrained'],
+            input_bn=config['in-bn']
+        )
+    else:
+        raise Exception('backbone ' + config['backbone'] + ' is not supported')
+else:
+    raise Exception(config['arch'] + ' is not supported')
+
 model.eval()
 model.to(0)
 model.load_state_dict(ckpt)
@@ -20,7 +50,7 @@ img_path = '/var/ssd_1t/kaggle_bengali/jpeg_crop/'
 dev_df = pd.read_csv('/home/lyan/Documents/kaggle/bangali_19/dev.csv')
 dev_ids = dev_df.values
 dev_dataset = BengaliDataset(path=img_path, values=dev_ids, aug=valid_aug_v0)
-dev_loader = DataLoader(dev_dataset, batch_size=32, shuffle=False, num_workers=10)
+dev_loader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)
 
 h1_preds = []
 h2_preds = []
