@@ -6,6 +6,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def create_net(name, pretrained=True):
+    if name == 'se_resnext50_32x4d':
+        if pretrained:
+            return pm.se_resnext50_32x4d()
+        else:
+            return pm.se_resnext50_32x4d(pretrained=None)
+    elif name == 'se_resnext101_32x4d':
+        if pretrained:
+            return pm.se_resnext101_32x4d()
+        else:
+            return pm.se_resnext101_32x4d(pretrained=None)
+    raise Exception('name '+str(name)+' is not supported')
+
+
 class BengResnet(nn.Module):
     def forward(self, x):
         if self.input_bn:
