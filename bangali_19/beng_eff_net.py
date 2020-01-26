@@ -18,7 +18,7 @@ class BengEffNetClassifier(nn.Module):
 
         return self.cls1(x), self.cls2(x), self.cls3(x)
 
-    def __init__(self, name='efficientnet-b0', pretrained=True, input_bn=True):
+    def __init__(self, name='efficientnet-b0', pretrained=True, input_bn=True, dropout_rate=0.3):
         super().__init__()
         self.input_bn = input_bn
         self.name = name

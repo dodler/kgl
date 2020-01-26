@@ -16,7 +16,7 @@ def create_net(name, pretrained=True):
         if pretrained:
             return pm.se_resnext101_32x4d()
         else:
-            return pm.se_resnext101_32x4d(pretrained=None)
+            return pm.se_resnext101_32x4d()
     raise Exception('name '+str(name)+' is not supported')
 
 
@@ -37,14 +37,13 @@ class BengResnet(nn.Module):
 
         return self.cls1(x), self.cls2(x), self.cls3(x)
 
-    def __init__(self, name='se_resnext50_32x4d', pretrained=True, input_bn=True):
+    def __init__(self, name='se_resnext50_32x4d', pretrained=True, input_bn=True, dropout=0.2):
         super().__init__()
+        self.dropout = dropout
         self.input_bn = input_bn
         self.name = name
-        if pretrained:
-            self.net = pm.se_resnext50_32x4d()
-        else:
-            self.net = pm.se_resnext50_32x4d(pretrained=None)
+        self.net = create_net(name=name, pretrained=pretrained)
+        # self.net.dropout = nn.Dropout(p=dropout)
 
         # fixme, replace 64 with value from net
         layer0_modules = [('conv1',
@@ -56,6 +55,7 @@ class BengResnet(nn.Module):
 
         linear_size = {
             'se_resnext50_32x4d': 2048,
+            'se_resnext101_32x4d': 2048,
         }
         self.cls1 = nn.Linear(linear_size[name], 168)
         self.cls2 = nn.Linear(linear_size[name], 11)

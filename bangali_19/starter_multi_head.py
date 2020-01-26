@@ -3,10 +3,8 @@ import argparse
 import torch
 from catalyst.dl import CriterionCallback, AccuracyCallback
 from catalyst.dl.callbacks import EarlyStoppingCallback
-from catalyst.dl.callbacks.criterion import CriterionAggregatorCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, ExponentialLR, CyclicLR
 from torch.utils.data import DataLoader
 
 from bangali_19.augmentations import get_augmentation
@@ -14,6 +12,8 @@ from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_resnets import BengResnet
 from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
 from bangali_19.configs import get_config
+from catalyst_contrib import CriterionAggregatorCallback
+from opt.radam import RAdam
 
 parser = argparse.ArgumentParser(description='Understanding cloud training')
 
@@ -31,18 +31,29 @@ args = parser.parse_args()
 
 config = get_config(name=args.config)
 
+dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
+
 if config['arch'] == 'multi-head':
     if 'efficientnet' in config['backbone']:
         model = BengEffNetClassifier(
             name=config['backbone'],
             pretrained=config['pretrained'],
-            input_bn=config['in-bn']
+            input_bn=config['in-bn'],
+            dropout=dropout
         )
     elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
         model = BengResnet(
             name=config['backbone'],
             pretrained=config['pretrained'],
-            input_bn=config['in-bn']
+            input_bn=config['in-bn'],
+            dropout=dropout
+        )
+    elif 'wsl-resnext' in config['backbone']:
+        model = BengWslResnext(
+            name=config['backbone'],
+            pretrained=config['pretrained'],
+            input_bn=['in-bn'],
+            dropout=dropout
         )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
@@ -84,6 +95,8 @@ elif config['opt'] == 'sgd':
     optimizer = SGD(params=model.parameters(), lr=lr, momentum=0.9, nesterov=True)
 elif config['opt'] == 'rmsprop':
     optimizer = torch.optim.RMSprop(params=model.parameters(), lr=lr)
+elif config['opt'] == 'radam':
+    optimizer = RAdam(params=model.parameters(), lr=lr)
 else:
     raise Exception(config['opt'] + ' is not supported')
 
@@ -98,6 +111,22 @@ criterion = {
 runner = SupervisedRunner(input_key='features', output_key=["h1_logits", "h2_logits", 'h3_logits'])
 
 early_stop_epochs = get_dict_value_or_default(dict_=config, key='early_stop_epochs', default_value=10)
+
+loss_agg_fn = get_dict_value_or_default(config, 'loss_aggregate_fn', 'mean')
+if loss_agg_fn == 'mean' or loss_agg_fn == 'sum':
+    crit_agg = CriterionAggregatorCallback(
+        prefix="loss",
+        loss_keys=["loss_h1", "loss_h2", 'loss_h3'],
+        loss_aggregate_fn=config['loss_aggregate_fn']
+    )
+elif loss_agg_fn == 'weighted_sum':
+    weights = get_dict_value_or_default(config, 'weights', [0.3, 0.3, 0.3])
+    crit_agg = CriterionAggregatorCallback(
+        prefix="loss",
+        loss_keys=["loss_h1", "loss_h2", 'loss_h3'],
+        loss_aggregate_fn=config['loss_aggregate_fn'],
+        loss_weights=weights,
+    )
 
 callbacks = [
     CriterionCallback(
@@ -118,11 +147,7 @@ callbacks = [
         prefix="loss_h3",
         criterion_key="h3"
     ),
-    CriterionAggregatorCallback(
-        prefix="loss",
-        loss_keys=["loss_h1", "loss_h2", 'loss_h3'],
-        loss_aggregate_fn=config['loss_aggregate_fn']  # or "mean"
-    ),
+    crit_agg,
     AccuracyCallback(input_key='h1_targets', output_key='h1_logits', prefix='acc_h1_'),
     AccuracyCallback(input_key='h2_targets', output_key='h2_logits', prefix='acc_h2_'),
     AccuracyCallback(input_key='h3_targets', output_key='h3_logits', prefix='acc_h3_'),
