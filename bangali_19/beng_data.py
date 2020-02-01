@@ -4,7 +4,8 @@ import cv2
 
 
 class BengaliDataset:
-    def __init__(self, path, values, aug):
+    def __init__(self, path, values, aug, isfoss_norm=False):
+        self.isfoss_norm = isfoss_norm
         self.path = path
         self.aug = aug
         self.values = values

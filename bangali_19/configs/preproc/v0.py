@@ -1,0 +1,15 @@
+config = {
+    "arch": "multi-head",
+    "backbone": "se_resnext50_32x4d",
+    "pretrained": True,
+    "in-bn": False,
+    'opt': 'radam',
+    'loss_aggregate_fn': 'mean',
+    'schedule': 'cosine_annealing_warm_restarts',
+    'T_0': 6,
+    'lr': 1e-3,
+    'norm_mean': [0.06922848809290576],
+    'norm_std': [0.20515700083327537],
+    'train_aug': 'augmentations.spatial.v2',
+    'valid_aug': 'augmentations.geom.v0',
+}

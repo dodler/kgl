@@ -43,14 +43,15 @@ def crop_resize(img0, size=SIZE, pad=16, width=WIDTH, height=HEIGHT,
 def bengali_ds_from_folds(img_path='/var/ssd_1t/kaggle_bengali/jpeg_crop/',
                           folds_path='/home/lyan/Documents/kaggle/bangali_19/folds.csv', fold=0,
                           train_aug=train_aug_v0,
-                          valid_aug=valid_aug_v0):
+                          valid_aug=valid_aug_v0,
+                          isfoss_norm=False):
     folds = pd.read_csv(folds_path)
 
     train_ids = folds[folds.fold != fold].values
     valid_ids = folds[folds.fold == fold].values
 
-    train_dataset = BengaliDataset(path=img_path, values=train_ids, aug=train_aug)
-    valid_dataset = BengaliDataset(path=img_path, values=valid_ids, aug=valid_aug)
+    train_dataset = BengaliDataset(path=img_path, values=train_ids, aug=train_aug, isfoss_norm=isfoss_norm)
+    valid_dataset = BengaliDataset(path=img_path, values=valid_ids, aug=valid_aug, isfoss_norm=isfoss_norm)
 
     return train_dataset, valid_dataset
 

@@ -31,6 +31,9 @@ args = parser.parse_args()
 
 config = get_config(name=args.config)
 
+iafoss_head = get_dict_value_or_default(config, key='isfoss_head', default_value=False)
+isfoss_norm = get_dict_value_or_default(config, key='isfoss_norm', default_value=False)
+
 dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
 
 if config['arch'] == 'multi-head':
@@ -46,7 +49,8 @@ if config['arch'] == 'multi-head':
             name=config['backbone'],
             pretrained=config['pretrained'],
             input_bn=config['in-bn'],
-            dropout=dropout
+            dropout=dropout,
+            isfoss_head=iafoss_head
         )
     elif 'wsl-resnext' in config['backbone']:
         model = BengWslResnext(
@@ -72,6 +76,7 @@ train_dataset, valid_dataset = bengali_ds_from_folds(
     folds_path='/home/lyan/Documents/kaggle/bangali_19/folds.csv',
     train_aug=train_aug,
     valid_aug=valid_aug,
+    isfoss_norm=isfoss_norm,
 )
 
 train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True, num_workers=num_workers)

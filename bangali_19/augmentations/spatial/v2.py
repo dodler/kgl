@@ -16,7 +16,7 @@ train_aug = Compose([
         MotionBlur(p=0.2),
         MedianBlur(p=0.2),
         GaussianBlur(p=0.2),
-    ],p=0.3),
+    ], p=0.3),
     Resize(128, 128, always_apply=True),
     ToTensor()
 ])

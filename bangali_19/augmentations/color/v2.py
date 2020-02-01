@@ -1,5 +1,5 @@
 from albumentations import Compose, Resize, RandomCrop, Flip, HorizontalFlip, VerticalFlip, Transpose, RandomRotate90, \
-    ShiftScaleRotate, OneOf, Blur, MotionBlur, MedianBlur, GaussianBlur, RandomBrightness
+    ShiftScaleRotate, OneOf, OpticalDistortion, HueSaturationValue, RandomGamma, RandomBrightness, Normalize
 from albumentations.pytorch import ToTensor
 
 train_aug = Compose([
@@ -11,18 +11,15 @@ train_aug = Compose([
         RandomRotate90(p=0.2),
     ], p=0.3),
     ShiftScaleRotate(p=0.2),
-    OneOf([
-        Blur(p=0.2),
-        MotionBlur(p=0.2),
-        MedianBlur(p=0.2),
-        GaussianBlur(p=0.2),
-    ], p=0.3),
     RandomBrightness(p=0.2),
     Resize(128, 128, always_apply=True),
+    Normalize(mean=0.06922848809290576, std=0.20515700083327537),
     ToTensor()
 ])
 
 valid_aug = Compose([
     Resize(128, 128, always_apply=True),
+    Normalize(mean=0.06922848809290576, std=0.20515700083327537),
     ToTensor()
 ])
+
