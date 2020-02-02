@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
 import cv2
+from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, ExponentialLR, CyclicLR, \
     CosineAnnealingWarmRestarts
 
 from bangali_19.beng_augs import train_aug_v0, valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
+from bangali_19.beng_heads import HeadV1, Head
 
 HEIGHT = 137
 WIDTH = 236
@@ -89,6 +91,29 @@ def make_scheduler_from_config(optimizer, config):
         raise Exception('check your config, config not supported')
     else:
         return ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
+
+
+def get_head_cls(head):
+    if head == 'V1':
+        return HeadV1
+    else:
+        raise Exception('head ' + str(head) + ' is not supported')
+
+
+def get_head(isfoss_head, head, in_size):
+    if head != 'V0':
+        head_cls = get_head_cls(head)
+        return head_cls(in_size, 168), \
+               head_cls(in_size, 11), \
+               head_cls(in_size, 7)
+    if isfoss_head:
+        return Head(in_size, 168), \
+               Head(in_size, 11), \
+               Head(in_size, 7)
+    else:
+        return nn.Linear(in_size, 168), \
+               nn.Linear(in_size, 11), \
+               nn.Linear(in_size, 7)
 
 
 if __name__ == '__main__':

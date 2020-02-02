@@ -2,17 +2,18 @@ import argparse
 
 import torch
 from catalyst.dl import CriterionCallback, AccuracyCallback
-from catalyst.dl.callbacks import EarlyStoppingCallback
+from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
 from torch.utils.data import DataLoader
 
 from bangali_19.augmentations import get_augmentation
+from bangali_19.beng_densenet import BengDensenet
 from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_resnets import BengResnet
 from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
 from bangali_19.configs import get_config
-from catalyst_contrib import CriterionAggregatorCallback
+from catalyst_contrib import MixupCallback
 from opt.radam import RAdam
 
 parser = argparse.ArgumentParser(description='Understanding cloud training')
@@ -35,6 +36,7 @@ iafoss_head = get_dict_value_or_default(config, key='isfoss_head', default_value
 isfoss_norm = get_dict_value_or_default(config, key='isfoss_norm', default_value=False)
 
 dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
+head = get_dict_value_or_default(config, key='head', default_value='V0')
 
 if config['arch'] == 'multi-head':
     if 'efficientnet' in config['backbone']:
@@ -42,7 +44,8 @@ if config['arch'] == 'multi-head':
             name=config['backbone'],
             pretrained=config['pretrained'],
             input_bn=config['in-bn'],
-            dropout=dropout
+            dropout=dropout,
+            head=head,
         )
     elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
         model = BengResnet(
@@ -50,7 +53,16 @@ if config['arch'] == 'multi-head':
             pretrained=config['pretrained'],
             input_bn=config['in-bn'],
             dropout=dropout,
-            isfoss_head=iafoss_head
+            isfoss_head=iafoss_head,
+            head=head,
+        )
+    elif 'densenet' in config['backbone']:
+        model = BengDensenet(
+            name=config['backbone'],
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            isfoss_head=iafoss_head,
+            head=head,
         )
     elif 'wsl-resnext' in config['backbone']:
         model = BengWslResnext(
@@ -64,7 +76,7 @@ if config['arch'] == 'multi-head':
 else:
     raise Exception(config['arch'] + ' is not supported')
 
-num_workers = 6
+num_workers = 8
 bs = args.batch_size
 
 train_aug = get_dict_value_or_default(config, 'train_aug', 'v0')
@@ -128,12 +140,23 @@ elif loss_agg_fn == 'weighted_sum':
     weights = get_dict_value_or_default(config, 'weights', [0.3, 0.3, 0.3])
     crit_agg = CriterionAggregatorCallback(
         prefix="loss",
-        loss_keys=["loss_h1", "loss_h2", 'loss_h3'],
+        loss_keys={"loss_h1": weights[0], "loss_h2": weights[1], 'loss_h3': weights[2]},
         loss_aggregate_fn=config['loss_aggregate_fn'],
-        loss_weights=weights,
     )
 
-callbacks = [
+callbacks = []
+
+mixup = get_dict_value_or_default(config, key='mixup', default_value=False)
+mixup_alpha = get_dict_value_or_default(config, key='mixup_alpha', default_value=0.3)
+
+if mixup:
+    callbacks.extend([
+        MixupCallback(crit_key='h1', input_key='h1_targets', output_key='h1_logits', alpha=mixup_alpha, on_train_only=False),
+        MixupCallback(crit_key='h2', input_key='h2_targets', output_key='h2_logits', alpha=mixup_alpha, on_train_only=False),
+        MixupCallback(crit_key='h3', input_key='h3_targets', output_key='h3_logits', alpha=mixup_alpha, on_train_only=False),
+    ])
+
+callbacks.extend([
     CriterionCallback(
         input_key="h1_targets",
         output_key="h1_logits",
@@ -157,7 +180,7 @@ callbacks = [
     AccuracyCallback(input_key='h2_targets', output_key='h2_logits', prefix='acc_h2_'),
     AccuracyCallback(input_key='h3_targets', output_key='h3_logits', prefix='acc_h3_'),
     EarlyStoppingCallback(patience=early_stop_epochs, min_delta=0.001)
-]
+])
 
 runner.train(
     fp16=args.fp16,

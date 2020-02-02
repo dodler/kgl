@@ -1,15 +1,13 @@
 config = {
     "arch": "multi-head",
-    "backbone": "se_resnext50_32x4d",
+    "backbone": "densenet201",
     "pretrained": True,
-    "in-bn": False,
+    "in-bn": True,
     'opt': 'radam',
     'loss_aggregate_fn': 'mean',
-    'loss_weights': [0.7, 0.1, 0.2],
     'schedule': 'cosine_annealing_warm_restarts',
     'T_0': 6,
     'lr': 1e-3,
-    'iafoss_head': True,
-    'train_aug': 'augmentations.color.v2',
+    'train_aug': 'augmentations.spatial.v2',
     'valid_aug': 'augmentations.geom.v0',
 }

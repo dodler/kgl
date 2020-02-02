@@ -1,16 +1,20 @@
 import argparse
+import time
+
 import torch
 from torch.utils.data import DataLoader
 from tqdm import *
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, recall_score
 
 import pandas as pd
 from bangali_19.beng_augs import valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
+from bangali_19.beng_densenet import BengDensenet
 from bangali_19.beng_eff_net import BengEffNetClassifier
 import numpy as np
 
 from bangali_19.beng_resnets import BengResnet
+from bangali_19.beng_utils import get_dict_value_or_default
 from bangali_19.configs import get_config
 
 parser = argparse.ArgumentParser(description='Understanding cloud training')
@@ -24,18 +28,45 @@ args = parser.parse_args()
 ckpt = torch.load(args.ckpt)['model_state_dict']
 
 config = get_config(name=args.config)
+
+iafoss_head = get_dict_value_or_default(config, key='isfoss_head', default_value=False)
+isfoss_norm = get_dict_value_or_default(config, key='isfoss_norm', default_value=False)
+
+dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
+head = get_dict_value_or_default(config, key='head', default_value='V0')
+
 if config['arch'] == 'multi-head':
     if 'efficientnet' in config['backbone']:
         model = BengEffNetClassifier(
             name=config['backbone'],
             pretrained=config['pretrained'],
-            input_bn=config['in-bn']
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            head=head,
         )
     elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
         model = BengResnet(
             name=config['backbone'],
             pretrained=config['pretrained'],
-            input_bn=config['in-bn']
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            isfoss_head=iafoss_head,
+            head=head,
+        )
+    elif 'densenet' in config['backbone']:
+        model = BengDensenet(
+            name=config['backbone'],
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            isfoss_head=iafoss_head,
+            head=head,
+        )
+    elif 'wsl-resnext' in config['backbone']:
+        model = BengWslResnext(
+            name=config['backbone'],
+            pretrained=config['pretrained'],
+            input_bn=['in-bn'],
+            dropout=dropout
         )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
@@ -60,6 +91,8 @@ h1_gt = dev_dataset.values[:, 1].astype(np.int32)
 h2_gt = dev_dataset.values[:, 2].astype(np.int32)
 h3_gt = dev_dataset.values[:, 3].astype(np.int32)
 
+st = time.time()
+
 for batch in tqdm(dev_loader):
     img = batch['features'].to(0)
 
@@ -79,6 +112,11 @@ h3_preds = np.concatenate(h3_preds)
 
 print(h1_preds.shape, h1_gt.shape)
 
-print(accuracy_score(y_true=h1_gt, y_pred=h1_preds))
-print(accuracy_score(y_true=h2_gt, y_pred=h2_preds))
-print(accuracy_score(y_true=h3_gt, y_pred=h3_preds))
+scores = [recall_score(y_true=h1_gt, y_pred=h1_preds),
+          recall_score(y_true=h2_gt, y_pred=h2_preds),
+          recall_score(y_true=h3_gt, y_pred=h3_preds)]
+
+scores = np.array(scores)
+
+print('avg recall', np.average(scores, weights=[2, 1, 1]))
+print('time elapsed ', time.time() - st)

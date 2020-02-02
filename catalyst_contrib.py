@@ -1,194 +1,90 @@
 import logging
-from typing import Optional, Any, List, Union
+from typing import List  # isort:skip
 
+import numpy as np
 import torch
-from catalyst.dl.core import Callback, RunnerState, CallbackOrder
+from catalyst.dl import CriterionCallback, State
 
 logger = logging.getLogger(__name__)
 
 
-def _add_loss_to_state(
-        loss_key: Optional[str],
-        state: RunnerState,
-        loss: torch.Tensor
-):
-    if loss_key is None:
-        if state.loss is not None:
-            if isinstance(state.loss, list):
-                state.loss.append(loss)
-            else:
-                state.loss = [state.loss, loss]
-        else:
-            state.loss = loss
-    else:
-        if state.loss is not None:
-            assert isinstance(state.loss, dict)
-            state.loss[loss_key] = loss
-        else:
-            state.loss = {loss_key: loss}
-
-
-class CriterionCallback(Callback):
+class MixupCallback(CriterionCallback):
     """
-    Callback for that measures loss with specified criterion.
+    Callback to do mixup augmentation.
+    Paper: https://arxiv.org/abs/1710.09412
+    Note:
+        MixupCallback is inherited from CriterionCallback and
+        does its work.
+        You may not use them together.
     """
 
     def __init__(
             self,
-            input_key: Union[str, List[str]] = "targets",
-            output_key: Union[str, List[str]] = "logits",
-            prefix: str = "loss",
-            criterion_key: str = None,
-            multiplier: float = 1.0
+            crit_key,
+            input_key,
+            output_key,
+            fields: List[str] = ("features",),
+            alpha=1.0,
+            on_train_only=True,
+            **kwargs
     ):
         """
         Args:
-            input_key (Union[str, List[str]]): key or list of keys that takes
-                values from the input dictionary
-                If None, the whole input will be passed to the criterion.
-            output_key (Union[str, List[str]]): key or list of keys that takes
-                values from the output dictionary
-                If None, the whole output will be passed to the criterion.
-            prefix (str): prefix for metrics and output key for loss
-                in ``state.loss`` dictionary
-            criterion_key (str): A key to take a criterion in case
-                there are several of them and they are in a dictionary format.
-            multiplier (float): scale factor for the output loss.
+            fields (List[str]): list of features which must be affected.
+            alpha (float): beta distribution a=b parameters.
+                Must be >=0. The more alpha closer to zero
+                the less effect of the mixup.
+            on_train_only (bool): Apply to train only.
+                As the mixup use the proxy inputs, the targets are also proxy.
+                We are not interested in them, are we?
+                So, if on_train_only is True, use a standard output/metric
+                for validation.
         """
-        super().__init__(CallbackOrder.Criterion)
+        assert len(fields) > 0, \
+            "At least one field for MixupCallback is required"
+        assert alpha >= 0, "alpha must be>=0"
+
+        super().__init__(**kwargs)
+
+        self.crit_key = crit_key
+        self.on_train_only = on_train_only
+        self.fields = fields
         self.input_key = input_key
         self.output_key = output_key
-        self.prefix = prefix
-        self.criterion_key = criterion_key
-        self.multiplier = multiplier
+        self.alpha = alpha
+        self.lam = 1
+        self.index = None
+        self.is_needed = True
 
-    @staticmethod
-    def _get(dictionary: dict, keys: Optional[Union[str, List[str]]]) -> Any:
-        if keys is None:
-            result = dictionary
-        elif isinstance(keys, list):
-            result = {key: dictionary[key] for key in keys}
-        else:
-            result = dictionary[keys]
-        return result
+    def _compute_loss(self, state: State, criterion):
+        if not self.is_needed:
+            return super()._compute_loss(state, criterion)
 
-    def _compute_loss(self, state: RunnerState, criterion):
-        output = self._get(state.output, self.output_key)
-        input = self._get(state.input, self.input_key)
+        pred = state.output[self.output_key]
+        y_a = state.input[self.input_key]
+        y_b = state.input[self.input_key][self.index]
 
-        loss = criterion(output, input)
+        crit = criterion[self.crit_key]
+        loss = self.lam * crit(pred, y_a) + \
+               (1 - self.lam) * crit(pred, y_b)
         return loss
 
-    def on_stage_start(self, state: RunnerState):
-        assert state.criterion is not None
+    def on_loader_start(self, state: State):
+        self.is_needed = not self.on_train_only or \
+                         state.loader_name.startswith("train")
 
-    def on_batch_end(self, state: RunnerState):
-        criterion = state.get_key(
-            key="criterion", inner_key=self.criterion_key
-        )
+    def on_batch_start(self, state: State):
+        if not self.is_needed:
+            return
 
-        loss = self._compute_loss(state, criterion) * self.multiplier
-
-        state.metrics.add_batch_value(
-            metrics_dict={
-                self.prefix: loss.item(),
-            }
-        )
-
-        _add_loss_to_state(self.prefix, state, loss)
-
-
-def weighted_sum(loss_list: List[torch.Tensor], weights: List[float]):
-
-    assert len(loss_list) == len(weights), 'Losses and weights should have same length'
-
-    s = 0
-
-    for i in range(len(weights)):
-        s += (loss_list[i] * weights[i])
-
-    return s
-
-
-class CriterionAggregatorCallback(Callback):
-    """
-    This callback allows you to aggregate the values of the loss
-    (by ``sum`` or ``mean`` or ``weighted_sum``) and put the value back into ``state.loss``.
-    """
-
-    def __init__(
-            self,
-            prefix: str,
-            loss_keys: Union[str, List[str]] = None,
-            loss_weights: List[int] = None,
-            loss_aggregate_fn: str = "sum",
-            multiplier: float = 1.0
-    ) -> None:
-        """
-        Args:
-            prefix (str): new key for aggregated loss.
-            loss_keys (List[str]): If not empty, it aggregates
-                only the values from the loss by these keys.
-            loss_aggregate_fn (str): function for aggregation.
-                Must be either ``sum`` or ``mean``.
-            multiplier (float): scale factor for the aggregated loss.
-        """
-        super().__init__(CallbackOrder.Criterion + 1)
-        self.loss_weights = loss_weights
-        assert prefix is not None and isinstance(prefix, str), \
-            "prefix must be str"
-        self.prefix = prefix
-
-        if isinstance(loss_keys, str):
-            loss_keys = [loss_keys]
-        self.loss_keys = loss_keys
-
-        self.multiplier = multiplier
-        self.loss_aggregate_fn = loss_aggregate_fn
-        if loss_aggregate_fn == "sum":
-            self.loss_fn = lambda x: torch.sum(torch.stack(x)) * multiplier
-        elif loss_aggregate_fn == "mean":
-            self.loss_fn = lambda x: torch.mean(torch.stack(x)) * multiplier
-        elif loss_aggregate_fn == 'weighted_sum':
-            pass
+        if self.alpha > 0:
+            self.lam = np.random.beta(self.alpha, self.alpha)
         else:
-            raise ValueError("loss_aggregate_fn must be `sum` or `mean`")
+            self.lam = 1
 
-        self.loss_aggregate_name = loss_aggregate_fn
+        self.index = torch.randperm(state.input[self.fields[0]].shape[0])
+        self.index.to(state.device)
 
-    def _preprocess_loss(self, loss: Any) -> List[torch.Tensor]:
-        if isinstance(loss, list):
-            if self.loss_keys is not None:
-                logger.warning(
-                    f"Trying to get {self.loss_keys} keys from the losses, "
-                    "but the loss is a list. All values will be aggregated."
-                )
-            result = loss
-        elif isinstance(loss, dict):
-            if self.loss_keys is not None:
-                result = [loss[key] for key in self.loss_keys]
-            else:
-                result = list(loss.values())
-        else:
-            result = [loss]
-
-        return result
-
-    def on_batch_end(self, state: RunnerState) -> None:
-        loss = state.get_key(key="loss")
-        loss = self._preprocess_loss(loss)
-        if self.loss_aggregate_fn == 'weighted_sum':
-            loss = weighted_sum(loss, self.loss_weights)
-        else:
-            loss = self.loss_fn(loss)
-
-        state.metrics.add_batch_value(
-            metrics_dict={
-                self.prefix: loss.item(),
-            }
-        )
-
-        _add_loss_to_state(self.prefix, state, loss)
-
-
-__all__ = ["CriterionCallback", "CriterionAggregatorCallback"]
+        for f in self.fields:
+            state.input[f] = self.lam * state.input[f] + \
+                             (1 - self.lam) * state.input[f][self.index]
