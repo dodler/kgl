@@ -1,6 +1,6 @@
 config = {
     "arch": "multi-head",
-    "backbone": "densenet169",
+    "backbone": "resnext101_32x8d_wsl",
     "pretrained": True,
     "in-bn": True,
     'opt': 'radam',
@@ -9,5 +9,5 @@ config = {
     'T_0': 6,
     'lr': 1e-3,
     'train_aug': 'augmentations.spatial.v2',
-    'valid_aug': 'augmentations.geom.v8',
+    'valid_aug': 'augmentations.geom.v0',
 }

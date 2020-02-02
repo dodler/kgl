@@ -37,8 +37,7 @@ class BengDensenet(nn.Module):
             return self.cls1(x), self.cls2(x), self.cls3(x)
         else:
             x = F.adaptive_avg_pool2d(x, output_size=1)
-            if self.dropout is not None:
-                x = self.dropout_layer(x)
+            x = self.dropout_layer(x)
             x = x.view(x.size(0), -1)
 
             return self.cls1(x), self.cls2(x), self.cls3(x)

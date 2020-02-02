@@ -29,8 +29,9 @@ class Head(nn.Module):
 class HeadV1(nn.Module):
     def __init__(self, inp, outp, dropout=0.2):
         super().__init__()
-        layers = [Flatten()] + bn_drop_lin(n_in=inp, n_out=outp, bn=True, p=dropout)
-        self.fc = nn.Sequential(*layers)
+        self.bn = nn.BatchNorm1d(num_features=inp)
+        self.drop = nn.Dropout(p=dropout, inplace=True)
+        self.lin = nn.Linear(in_features=inp, out_features=outp)
 
         self._init_weight()
 
@@ -44,4 +45,8 @@ class HeadV1(nn.Module):
 
     def forward(self, x):
         x = F.adaptive_avg_pool2d(x, output_size=1)
+        x = x.view(x.size(0), -1)
+        x = self.bn(x)
+        x = self.drop(x)
+        x = self.lin(x)
         return self.fc(x)

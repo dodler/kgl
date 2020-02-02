@@ -10,16 +10,13 @@ from bangali_19.beng_utils import get_head
 
 def create_net(name, pretrained=True):
     if name == 'se_resnext50_32x4d':
-        if pretrained:
-            return pm.se_resnext50_32x4d()
-        else:
-            return pm.se_resnext50_32x4d(pretrained=None)
+        return pm.se_resnext50_32x4d()
     elif name == 'se_resnext101_32x4d':
-        if pretrained:
-            return pm.se_resnext101_32x4d()
-        else:
-            return pm.se_resnext101_32x4d()
-    raise Exception('name ' + str(name) + ' is not supported')
+        return pm.se_resnext101_32x4d()
+    elif name == 'resnext101_32x8d_wsl':
+        return torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+    else:
+        raise Exception('name ' + str(name) + ' is not supported')
 
 
 class BengResnet(nn.Module):
@@ -35,8 +32,7 @@ class BengResnet(nn.Module):
 
         if self.head == 'V0':
             x = F.adaptive_avg_pool2d(x, output_size=1)
-            if self.net.dropout is not None:
-                x = self.net.dropout(x)
+            x = self.dropout_layer(x)
             x = x.view(x.size(0), -1)
 
             return self.cls1(x), self.cls2(x), self.cls3(x)
@@ -54,7 +50,7 @@ class BengResnet(nn.Module):
         self.name = name
         self.isfoss_head = isfoss_head
         self.net = create_net(name=name, pretrained=pretrained)
-        # self.net.dropout = nn.Dropout(p=dropout)
+        self.dropout_layer = nn.Dropout(p=dropout)
 
         layer0_modules = [('conv1',
                            nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)),
@@ -66,6 +62,7 @@ class BengResnet(nn.Module):
         linear_size = {
             'se_resnext50_32x4d': 2048,
             'se_resnext101_32x4d': 2048,
+            'resnext101_32x8d_wsl': 2048,
         }
 
         self.cls1, self.cls2, self.cls3 = get_head(isfoss_head, head, in_size=linear_size[name])
