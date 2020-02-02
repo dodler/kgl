@@ -112,9 +112,9 @@ h3_preds = np.concatenate(h3_preds)
 
 print(h1_preds.shape, h1_gt.shape)
 
-scores = [recall_score(y_true=h1_gt, y_pred=h1_preds),
-          recall_score(y_true=h2_gt, y_pred=h2_preds),
-          recall_score(y_true=h3_gt, y_pred=h3_preds)]
+scores = [recall_score(y_true=h1_gt, y_pred=h1_preds, average='macro'),
+          recall_score(y_true=h2_gt, y_pred=h2_preds, average='macro'),
+          recall_score(y_true=h3_gt, y_pred=h3_preds, average='macro')]
 
 scores = np.array(scores)
 

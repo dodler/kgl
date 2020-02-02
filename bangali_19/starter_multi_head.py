@@ -2,7 +2,7 @@ import argparse
 
 import torch
 from catalyst.dl import CriterionCallback, AccuracyCallback
-from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback
+from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback, PrecisionRecallF1ScoreCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
 from torch.utils.data import DataLoader
