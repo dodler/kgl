@@ -2,7 +2,7 @@ import argparse
 
 import torch
 from catalyst.dl import CriterionCallback, AccuracyCallback
-from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback, PrecisionRecallF1ScoreCallback
+from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
 from torch.utils.data import DataLoader
@@ -11,6 +11,7 @@ from bangali_19.augmentations import get_augmentation
 from bangali_19.beng_densenet import BengDensenet
 from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_resnets import BengResnet
+from bangali_19.beng_score import h1_recall, h2_recall, h3_recall
 from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
 from bangali_19.configs import get_config
 from catalyst_contrib import MixupCallback
@@ -64,13 +65,6 @@ if config['arch'] == 'multi-head':
             isfoss_head=iafoss_head,
             head=head,
         )
-    elif 'wsl-resnext' in config['backbone']:
-        model = BengWslResnext(
-            name=config['backbone'],
-            pretrained=config['pretrained'],
-            input_bn=['in-bn'],
-            dropout=dropout
-        )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
 else:
@@ -99,7 +93,7 @@ loaders = {
     "valid": valid_loader
 }
 
-num_epochs = 40
+num_epochs = 100
 logdir = "/var/data/bengali" + str(args.fold) + '_config_' + str(args.config) + '_comment_' + args.comment
 
 lr = get_dict_value_or_default(dict_=config, key='lr', default_value=args.lr)
@@ -151,9 +145,12 @@ mixup_alpha = get_dict_value_or_default(config, key='mixup_alpha', default_value
 
 if mixup:
     callbacks.extend([
-        MixupCallback(crit_key='h1', input_key='h1_targets', output_key='h1_logits', alpha=mixup_alpha, on_train_only=False),
-        MixupCallback(crit_key='h2', input_key='h2_targets', output_key='h2_logits', alpha=mixup_alpha, on_train_only=False),
-        MixupCallback(crit_key='h3', input_key='h3_targets', output_key='h3_logits', alpha=mixup_alpha, on_train_only=False),
+        MixupCallback(crit_key='h1', input_key='h1_targets', output_key='h1_logits', alpha=mixup_alpha,
+                      on_train_only=False),
+        MixupCallback(crit_key='h2', input_key='h2_targets', output_key='h2_logits', alpha=mixup_alpha,
+                      on_train_only=False),
+        MixupCallback(crit_key='h3', input_key='h3_targets', output_key='h3_logits', alpha=mixup_alpha,
+                      on_train_only=False),
     ])
 
 callbacks.extend([
@@ -176,10 +173,8 @@ callbacks.extend([
         criterion_key="h3"
     ),
     crit_agg,
-    AccuracyCallback(input_key='h1_targets', output_key='h1_logits', prefix='acc_h1_'),
-    AccuracyCallback(input_key='h2_targets', output_key='h2_logits', prefix='acc_h2_'),
-    AccuracyCallback(input_key='h3_targets', output_key='h3_logits', prefix='acc_h3_'),
-    EarlyStoppingCallback(patience=early_stop_epochs, min_delta=0.001)
+    h1_recall, h2_recall, h3_recall,
+    EarlyStoppingCallback(metric='h1_ma_rec__', patience=early_stop_epochs, min_delta=0.001)
 ])
 
 runner.train(
