@@ -61,17 +61,11 @@ if config['arch'] == 'multi-head':
             isfoss_head=iafoss_head,
             head=head,
         )
-    elif 'wsl-resnext' in config['backbone']:
-        model = BengWslResnext(
-            name=config['backbone'],
-            pretrained=config['pretrained'],
-            input_bn=['in-bn'],
-            dropout=dropout
-        )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
 else:
     raise Exception(config['arch'] + ' is not supported')
+
 
 model.eval()
 model.to(0)
