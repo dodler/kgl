@@ -239,12 +239,14 @@ class GridMask(DualTransform):
 
     def get_transform_init_args_names(self):
         return ('num_grid', 'fill_value', 'rotate', 'mode')
+
+
 if __name__ == '__main__':
     data = torch.randn(2, 3, 224, 224)
-    preds1 = (torch.randn(2, 10)*10).int()
-    preds2 = (torch.randn(2, 15)*10).int()
-    preds3 = (torch.randn(2, 20)*10).int()
+    preds1 = (torch.randn(2, 10) * 10).int()
+    preds2 = (torch.randn(2, 15) * 10).int()
+    preds3 = (torch.randn(2, 20) * 10).int()
 
-    data, targets = mixup(data, preds1, preds2,preds3, 1.0)
+    data, targets = mixup(data, preds1, preds2, preds3, 1.0)
 
     print(data, targets)

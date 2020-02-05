@@ -147,32 +147,31 @@ if mixup:
     callbacks.extend([
         MixupCallback(crit_key='h1', input_key='h1_targets', output_key='h1_logits', alpha=mixup_alpha,
                       on_train_only=False),
-        MixupCallback(crit_key='h2', input_key='h2_targets', output_key='h2_logits', alpha=mixup_alpha,
-                      on_train_only=False),
-        MixupCallback(crit_key='h3', input_key='h3_targets', output_key='h3_logits', alpha=mixup_alpha,
-                      on_train_only=False),
+    ])
+else:
+    callbacks.extend([
+        CriterionCallback(
+            input_key="h1_targets",
+            output_key="h1_logits",
+            prefix="loss_h1",
+            criterion_key="h1"
+        ),
+        CriterionCallback(
+            input_key="h2_targets",
+            output_key="h2_logits",
+            prefix="loss_h2",
+            criterion_key="h2"
+        ),
+        CriterionCallback(
+            input_key="h3_targets",
+            output_key="h3_logits",
+            prefix="loss_h3",
+            criterion_key="h3"
+        ),
+        crit_agg,
     ])
 
 callbacks.extend([
-    CriterionCallback(
-        input_key="h1_targets",
-        output_key="h1_logits",
-        prefix="loss_h1",
-        criterion_key="h1"
-    ),
-    CriterionCallback(
-        input_key="h2_targets",
-        output_key="h2_logits",
-        prefix="loss_h2",
-        criterion_key="h2"
-    ),
-    CriterionCallback(
-        input_key="h3_targets",
-        output_key="h3_logits",
-        prefix="loss_h3",
-        criterion_key="h3"
-    ),
-    crit_agg,
     h1_recall, h2_recall, h3_recall,
     EarlyStoppingCallback(metric='h1_ma_rec__', patience=early_stop_epochs, min_delta=0.001)
 ])

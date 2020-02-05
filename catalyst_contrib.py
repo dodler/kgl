@@ -5,6 +5,8 @@ import numpy as np
 import torch
 from catalyst.dl import CriterionCallback, State
 
+from kaggle_lyan_utils import mixup
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,17 +59,12 @@ class MixupCallback(CriterionCallback):
         self.is_needed = True
 
     def _compute_loss(self, state: State, criterion):
-        if not self.is_needed:
-            return super()._compute_loss(state, criterion)
+        pred1 = state.output['h1_logits']
+        pred2 = state.output['h1_logit2']
+        pred3 = state.output['h1_logit3']
+        data = state.input['features']
 
-        pred = state.output[self.output_key]
-        y_a = state.input[self.input_key]
-        y_b = state.input[self.input_key][self.index]
-
-        crit = criterion[self.crit_key]
-        loss = self.lam * crit(pred, y_a) + \
-               (1 - self.lam) * crit(pred, y_b)
-        return loss
+        return mixup(data, pred1, pred2, pred3)
 
     def on_loader_start(self, state: State):
         self.is_needed = not self.on_train_only or \
