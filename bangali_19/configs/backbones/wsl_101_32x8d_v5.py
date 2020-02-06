@@ -1,6 +1,6 @@
 config = {
     "arch": "multi-head",
-    "backbone": "se_resnext50_32x4d",
+    "backbone": "resnext101_32x8d_wsl",
     "pretrained": True,
     "in-bn": True,
     'opt': 'radam',
@@ -8,7 +8,8 @@ config = {
     'schedule': 'cosine_annealing_warm_restarts',
     'T_0': 6,
     'lr': 1e-3,
-    'train_aug': 'augmentations.spatial.v2',
+    'dropout': 0.4,
+    'train_aug': 'augmentations.compose.v1',
     'valid_aug': 'augmentations.geom.v0',
     'mixup': True,
     'mixup_alpha': 0.5,

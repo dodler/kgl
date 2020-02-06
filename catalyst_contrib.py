@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from catalyst.dl import CriterionCallback, State
 
-from kaggle_lyan_utils import mixup
+from kaggle_lyan_utils import mixup, mixup_criterion
 
 logger = logging.getLogger(__name__)
 
@@ -59,29 +59,24 @@ class MixupCallback(CriterionCallback):
         self.is_needed = True
 
     def _compute_loss(self, state: State, criterion):
+        # print(state.output.keys(), state.input.keys())
         pred1 = state.output['h1_logits']
-        pred2 = state.output['h1_logit2']
-        pred3 = state.output['h1_logit3']
-        data = state.input['features']
+        pred2 = state.output['h2_logits']
+        pred3 = state.output['h3_logits']
+        targets = state.input['targets']
 
-        return mixup(data, pred1, pred2, pred3)
+        return mixup_criterion(pred1, pred2, pred3, targets)
 
     def on_loader_start(self, state: State):
         self.is_needed = not self.on_train_only or \
                          state.loader_name.startswith("train")
 
     def on_batch_start(self, state: State):
-        if not self.is_needed:
-            return
+        data = state.input['features']
+        inp1 = state.input['h1_targets']
+        inp2 = state.input['h2_targets']
+        inp3 = state.input['h3_targets']
 
-        if self.alpha > 0:
-            self.lam = np.random.beta(self.alpha, self.alpha)
-        else:
-            self.lam = 1
-
-        self.index = torch.randperm(state.input[self.fields[0]].shape[0])
-        self.index.to(state.device)
-
-        for f in self.fields:
-            state.input[f] = self.lam * state.input[f] + \
-                             (1 - self.lam) * state.input[f][self.index]
+        data, targets = mixup(data, inp1,inp2,inp3, self.alpha)
+        state.input['features'] = data
+        state.input['targets'] = targets

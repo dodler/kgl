@@ -8,8 +8,9 @@ config = {
     'schedule': 'cosine_annealing_warm_restarts',
     'T_0': 6,
     'lr': 1e-3,
+    'early_stop_epochs': 30,
     'train_aug': 'augmentations.spatial.v2',
     'valid_aug': 'augmentations.geom.v0',
-    'mixup':True,
-    'mixup_alpha':0.3,
+    'mixup': True,
+    'mixup_alpha': 0.5,
 }
