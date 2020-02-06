@@ -1,7 +1,7 @@
 import argparse
 
 import torch
-from catalyst.dl import CriterionCallback, AccuracyCallback
+from catalyst.dl import CriterionCallback
 from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
@@ -121,7 +121,7 @@ criterion = {
 
 runner = SupervisedRunner(input_key='features', output_key=["h1_logits", "h2_logits", 'h3_logits'])
 
-early_stop_epochs = get_dict_value_or_default(dict_=config, key='early_stop_epochs', default_value=10)
+early_stop_epochs = get_dict_value_or_default(dict_=config, key='early_stop_epochs', default_value=30)
 
 loss_agg_fn = get_dict_value_or_default(config, 'loss_aggregate_fn', 'mean')
 if loss_agg_fn == 'mean' or loss_agg_fn == 'sum':
