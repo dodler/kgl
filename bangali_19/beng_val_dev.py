@@ -14,6 +14,7 @@ from bangali_19.beng_eff_net import BengEffNetClassifier
 import numpy as np
 
 from bangali_19.beng_resnets import BengResnet
+from bangali_19.beng_resnets_3ch import BengResnet3Ch
 from bangali_19.beng_utils import get_dict_value_or_default
 from bangali_19.configs import get_config
 
@@ -24,7 +25,6 @@ parser.add_argument('--config', type=str, required=True, default=None)
 parser.add_argument('--ckpt', type=str, required=True, default=None)
 args = parser.parse_args()
 
-# /var/data/bengali0_model_efficientnet-b0_comment_bn_and_pretrain/checkpoints//train.30.pth
 ckpt = torch.load(args.ckpt)['model_state_dict']
 
 config = get_config(name=args.config)
@@ -35,6 +35,7 @@ isfoss_norm = get_dict_value_or_default(config, key='isfoss_norm', default_value
 dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
 head = get_dict_value_or_default(config, key='head', default_value='V0')
 
+
 if config['arch'] == 'multi-head':
     if 'efficientnet' in config['backbone']:
         model = BengEffNetClassifier(
@@ -44,7 +45,7 @@ if config['arch'] == 'multi-head':
             dropout=dropout,
             head=head,
         )
-    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
+    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone'] and not config['backbone'].endswith('_3ch'):
         model = BengResnet(
             name=config['backbone'],
             pretrained=config['pretrained'],
@@ -61,10 +62,26 @@ if config['arch'] == 'multi-head':
             isfoss_head=iafoss_head,
             head=head,
         )
+    elif config['backbone'].endswith('_3ch'):
+        name = config['backbone'].replace('_3ch', '')
+        print(name)
+        model = BengResnet3Ch(
+            name=name,
+            pretrained=config['pretrained'],
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            isfoss_head=iafoss_head,
+            head=head,
+        )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
 else:
     raise Exception(config['arch'] + ' is not supported')
+
+
+channel_num = 1
+if config['backbone'].endswith('_3ch'):
+    channel_num = 3
 
 
 model.eval()
@@ -74,7 +91,7 @@ model.load_state_dict(ckpt)
 img_path = '/var/ssd_1t/kaggle_bengali/jpeg_crop/'
 dev_df = pd.read_csv('/home/lyan/Documents/kaggle/bangali_19/dev.csv')
 dev_ids = dev_df.values
-dev_dataset = BengaliDataset(path=img_path, values=dev_ids, aug=valid_aug_v0)
+dev_dataset = BengaliDataset(path=img_path, values=dev_ids, aug=valid_aug_v0, channel_num=channel_num)
 dev_loader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)
 
 h1_preds = []

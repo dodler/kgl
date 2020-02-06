@@ -11,6 +11,7 @@ from bangali_19.augmentations import get_augmentation
 from bangali_19.beng_densenet import BengDensenet
 from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_resnets import BengResnet
+from bangali_19.beng_resnets_3ch import BengResnet3Ch
 from bangali_19.beng_score import h1_recall, h2_recall, h3_recall
 from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
 from bangali_19.configs import get_config
@@ -48,7 +49,7 @@ if config['arch'] == 'multi-head':
             dropout=dropout,
             head=head,
         )
-    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone']:
+    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone'] and not config['backbone'].endswith('_3ch'):
         model = BengResnet(
             name=config['backbone'],
             pretrained=config['pretrained'],
@@ -65,6 +66,17 @@ if config['arch'] == 'multi-head':
             isfoss_head=iafoss_head,
             head=head,
         )
+    elif config['backbone'].endswith('_3ch'):
+        name = config['backbone'].replace('_3ch', '')
+        print(name)
+        model = BengResnet3Ch(
+            name=name,
+            pretrained=config['pretrained'],
+            input_bn=config['in-bn'],
+            dropout=dropout,
+            isfoss_head=iafoss_head,
+            head=head,
+        )
     else:
         raise Exception('backbone ' + config['backbone'] + ' is not supported')
 else:
@@ -72,6 +84,10 @@ else:
 
 num_workers = 8
 bs = args.batch_size
+
+channel_num = 1
+if config['backbone'].endswith('_3ch'):
+    channel_num = 3
 
 train_aug = get_dict_value_or_default(config, 'train_aug', 'v0')
 valid_aug = get_dict_value_or_default(config, 'valid_aug', 'v0')
@@ -83,6 +99,7 @@ train_dataset, valid_dataset = bengali_ds_from_folds(
     train_aug=train_aug,
     valid_aug=valid_aug,
     isfoss_norm=isfoss_norm,
+    channel_num=channel_num,
 )
 
 train_loader = DataLoader(train_dataset, batch_size=bs, shuffle=True, num_workers=num_workers)

@@ -1,4 +1,4 @@
-from albumentations import Compose, Resize, RandomCrop, Flip, HorizontalFlip
+from albumentations import Compose, Resize, RandomCrop, Flip, HorizontalFlip, CenterCrop
 from albumentations.pytorch import ToTensor
 
 train_aug_v0 = Compose([
