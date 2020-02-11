@@ -2,7 +2,7 @@ import argparse
 
 import torch
 from catalyst.dl import CriterionCallback
-from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback
+from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback, OptimizerCallback
 from catalyst.dl.runner import SupervisedRunner
 from torch.optim import AdamW, Adam, SGD
 from torch.utils.data import DataLoader
@@ -12,7 +12,7 @@ from bangali_19.beng_densenet import BengDensenet
 from bangali_19.beng_eff_net import BengEffNetClassifier
 from bangali_19.beng_resnets import BengResnet
 from bangali_19.beng_resnets_3ch import BengResnet3Ch
-from bangali_19.beng_score import h1_recall, h2_recall, h3_recall
+from bangali_19.beng_score import score_callback
 from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
 from bangali_19.configs import get_config
 from catalyst_contrib import MixupCallback
@@ -110,7 +110,7 @@ loaders = {
     "valid": valid_loader
 }
 
-num_epochs = 100
+num_epochs = get_dict_value_or_default(config, 'epochs', 100)
 logdir = "/var/data/bengali" + str(args.fold) + '_config_' + str(args.config) + '_comment_' + args.comment
 
 lr = get_dict_value_or_default(dict_=config, key='lr', default_value=args.lr)
@@ -189,9 +189,13 @@ else:
     ])
 
 callbacks.extend([
-    h1_recall, h2_recall, h3_recall,
-    EarlyStoppingCallback(metric='h1_ma_rec__', patience=early_stop_epochs, min_delta=0.001)
+    score_callback,
+    EarlyStoppingCallback(metric='weight_recall', patience=early_stop_epochs, min_delta=0.001)
 ])
+
+callbacks.append(
+    OptimizerCallback(grad_clip_params={'params': 1.0}),
+)
 
 runner.train(
     fp16=args.fp16,

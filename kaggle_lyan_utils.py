@@ -135,13 +135,26 @@ def cutmix_criterion(preds1, preds2, preds3, targets):
 
 
 def mixup_criterion(preds1, preds2, preds3, targets):
-    targets1, targets2, targets3, targets4, targets5, targets6, lam = targets[0], targets[1], targets[2], targets[3], \
-                                                                      targets[4], targets[5], targets[6]
+    targets1, shuffled_targets1, \
+    targets2, shuffled_targets2, \
+    targets3, shuffled_targets3, lam = targets[0], targets[1], \
+                                       targets[2], targets[3], \
+                                       targets[4], targets[5], \
+                                       targets[6]
     criterion = nn.CrossEntropyLoss(reduction='mean')
-    return lam * criterion(preds1, targets1) + (1 - lam) * criterion(preds1, targets2) + lam * criterion(preds2,
-                                                                                                         targets3) + (
-                   1 - lam) * criterion(preds2, targets4) + lam * criterion(preds3, targets5) + (
-                   1 - lam) * criterion(preds3, targets6)
+
+    loss = 0.7 * criterion(preds1, targets1) + \
+           0.1 * criterion(preds2, shuffled_targets2) + \
+           0.2 * criterion(preds3, shuffled_targets3)
+    shuffled_loss = 0.7 * criterion(preds1, shuffled_targets1) + \
+                    0.1 * criterion(preds2, shuffled_targets2) + \
+                    0.2 * criterion(preds3, shuffled_targets3)
+
+    return lam * loss + (1 - lam) * shuffled_loss
+
+    # return lam * criterion(preds1, targets1) + (1 - lam) * criterion(preds1, shuffled_targets1) + \
+    #        lam * criterion(preds2, targets2) + (1 - lam) * criterion(preds2, shuffled_targets2) + \
+    #        lam * criterion(preds3, targets3) + (1 - lam) * criterion(preds3, shuffled_targets3)
 
 
 class GridMask(DualTransform):
@@ -242,11 +255,12 @@ class GridMask(DualTransform):
 
 
 if __name__ == '__main__':
-    data = torch.randn(2, 3, 224, 224)
-    preds1 = (torch.randn(2, 10) * 10).int()
-    preds2 = (torch.randn(2, 15) * 10).int()
-    preds3 = (torch.randn(2, 20) * 10).int()
+    n = 120
+    data = torch.randn(n, 3, 224, 224)
+    preds1 = (torch.randn(n, 10) * 10).int()
+    preds2 = (torch.randn(n, 15) * 10).int()
+    preds3 = (torch.randn(n, 20) * 10).int()
 
-    data, targets = mixup(data, preds1, preds2, preds3, 1.0)
+    data, targets = mixup(data, preds1, preds2, preds3, 0.5)
 
-    print(data, targets)
+    # print(data, targets)

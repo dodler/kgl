@@ -11,6 +11,4 @@ config = {
     'lr': 0.1,
     'train_aug': 'augmentations.color.v1',
     'valid_aug': 'augmentations.color.v1',
-    'early_stop_epochs': 50,
-    'epochs': 100,
 }
