@@ -7,6 +7,8 @@ from tqdm import *
 from sklearn.metrics import accuracy_score, recall_score
 
 import pandas as pd
+
+from bangali_19.augmentations import get_augmentation
 from bangali_19.beng_augs import valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
 from bangali_19.beng_densenet import BengDensenet
@@ -91,7 +93,13 @@ model.load_state_dict(ckpt)
 img_path = '/var/ssd_1t/kaggle_bengali/jpeg_crop/'
 dev_df = pd.read_csv('/home/lyan/Documents/kaggle/bangali_19/dev.csv')
 dev_ids = dev_df.values
-dev_dataset = BengaliDataset(path=img_path, values=dev_ids, aug=valid_aug_v0, channel_num=channel_num)
+
+train_aug = get_dict_value_or_default(config, 'train_aug', 'v0')
+valid_aug = get_dict_value_or_default(config, 'valid_aug', 'v0')
+train_aug, _ = get_augmentation(train_aug)
+_, valid_aug = get_augmentation(valid_aug)
+
+dev_dataset = BengaliDataset(path=img_path, values=dev_ids, aug=valid_aug, channel_num=channel_num)
 dev_loader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, num_workers=10)
 
 h1_preds = []
