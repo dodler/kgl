@@ -17,7 +17,7 @@ class BengaliDataset:
 
     def __getitem__(self, item):
         img_id = self.values[item, 0]
-        img_path = osp.join(self.path, img_id + '.jpg')
+        img_path = osp.join(self.path, img_id + '.png')
         if self.channel_num == 1:
             img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
         else:
