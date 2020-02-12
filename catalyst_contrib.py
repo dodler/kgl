@@ -4,8 +4,11 @@ from typing import List  # isort:skip
 from catalyst.dl import CriterionCallback, State
 
 from kaggle_lyan_utils import mixup, mixup_criterion
+import torch.nn as nn
 
 logger = logging.getLogger(__name__)
+
+criterion = nn.CrossEntropyLoss(reduction='mean')
 
 
 class MixupCallback(CriterionCallback):
@@ -57,13 +60,18 @@ class MixupCallback(CriterionCallback):
         self.is_needed = True
 
     def _compute_loss(self, state: State, criterion):
-        # print(state.output.keys(), state.input.keys())
         pred1 = state.output['h1_logits']
         pred2 = state.output['h2_logits']
         pred3 = state.output['h3_logits']
-        targets = state.input['targets']
 
-        return mixup_criterion(pred1, pred2, pred3, targets)
+        if not self.is_needed:
+            inp1 = state.input['h1_targets']
+            inp2 = state.input['h2_targets']
+            inp3 = state.input['h3_targets']
+            return 0.7*criterion(pred1,inp1)+0.1*criterion(pred2,inp2)+0.2*criterion(pred3, inp3)
+        else:
+            targets = state.input['targets']
+            return mixup_criterion(pred1, pred2, pred3, targets)
 
     def on_loader_start(self, state: State):
         self.is_needed = not self.on_train_only or \
@@ -74,6 +82,9 @@ class MixupCallback(CriterionCallback):
         inp1 = state.input['h1_targets']
         inp2 = state.input['h2_targets']
         inp3 = state.input['h3_targets']
+
+        if not self.is_needed:
+            return
 
         data, targets = mixup(data, inp1, inp2, inp3, self.alpha)
 
