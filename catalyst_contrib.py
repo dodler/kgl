@@ -1,8 +1,6 @@
 import logging
 from typing import List  # isort:skip
 
-import numpy as np
-import torch
 from catalyst.dl import CriterionCallback, State
 
 from kaggle_lyan_utils import mixup, mixup_criterion
@@ -77,6 +75,7 @@ class MixupCallback(CriterionCallback):
         inp2 = state.input['h2_targets']
         inp3 = state.input['h3_targets']
 
-        data, targets = mixup(data, inp1,inp2,inp3, self.alpha)
+        data, targets = mixup(data, inp1, inp2, inp3, self.alpha)
+
         state.input['features'] = data
         state.input['targets'] = targets
