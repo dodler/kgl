@@ -68,7 +68,7 @@ class MixupCallback(CriterionCallback):
             inp1 = state.input['h1_targets']
             inp2 = state.input['h2_targets']
             inp3 = state.input['h3_targets']
-            return 0.7*criterion(pred1,inp1)+0.1*criterion(pred2,inp2)+0.2*criterion(pred3, inp3)
+            return 0.7 * criterion(pred1, inp1) + 0.1 * criterion(pred2, inp2) + 0.2 * criterion(pred3, inp3)
         else:
             targets = state.input['targets']
             return mixup_criterion(pred1, pred2, pred3, targets)
