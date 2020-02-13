@@ -64,7 +64,7 @@ class MixupCallback(CriterionCallback):
         pred2 = state.output['h2_logits']
         pred3 = state.output['h3_logits']
 
-        if not self.is_needed:
+        if not state.loader_name.startswith("train"):
             inp1 = state.input['h1_targets']
             inp2 = state.input['h2_targets']
             inp3 = state.input['h3_targets']
@@ -76,7 +76,6 @@ class MixupCallback(CriterionCallback):
     def on_loader_start(self, state: State):
         self.is_needed = not self.on_train_only or \
                          state.loader_name.startswith("train")
-        print('!!!!!!!!!!!!! on loader start', state.loader_name, self.is_needed)
 
     def on_batch_start(self, state: State):
         data = state.input['features']
