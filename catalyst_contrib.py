@@ -76,6 +76,7 @@ class MixupCallback(CriterionCallback):
     def on_loader_start(self, state: State):
         self.is_needed = not self.on_train_only or \
                          state.loader_name.startswith("train")
+        print('!!!!!!!!!!!!! on loader start', state.loader_name, self.is_needed)
 
     def on_batch_start(self, state: State):
         data = state.input['features']
