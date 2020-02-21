@@ -96,9 +96,11 @@ _, valid_aug = get_augmentation(valid_aug)
 
 img_path = get_dict_value_or_default(config, 'img_path', '/var/ssd_1t/kaggle_bengali/jpeg_crop/')
 
+folds_path = get_dict_value_or_default(config, 'folds_path', '/home/lyan/Documents/kaggle/bangali_19/folds.csv')
+
 train_dataset, valid_dataset = bengali_ds_from_folds(
     img_path=img_path,
-    folds_path='/home/lyan/Documents/kaggle/bangali_19/folds.csv',
+    folds_path=folds_path,
     train_aug=train_aug,
     valid_aug=valid_aug,
     isfoss_norm=isfoss_norm,
@@ -210,5 +212,5 @@ runner.train(
     callbacks=callbacks,
     logdir=logdir,
     num_epochs=num_epochs,
-    verbose=True
+    verbose=True,
 )

@@ -141,7 +141,10 @@ def mixup_criterion(preds1, preds2, preds3, targets):
                                        targets[2], targets[3], \
                                        targets[4], targets[5], \
                                        targets[6]
-    criterion = nn.CrossEntropyLoss(reduction='mean')
+    criterion = nn.CrossEntropyLoss(reduction=None)
+
+    lambd = np.random.beta(0.4, 0.4, targets1.size(0))
+    lambd = np.concatenate([lambd[:, None], 1 - lambd[:, None]], 1).max(1)
 
     loss = 0.7 * criterion(preds1, targets1) + \
            0.1 * criterion(preds2, shuffled_targets2) + \

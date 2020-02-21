@@ -7,7 +7,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, Expon
 
 from bangali_19.beng_augs import train_aug_v0, valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
-from bangali_19.beng_heads import HeadV1, Head
+from bangali_19.beng_heads import HeadV1, Head, HeadV2
 
 HEIGHT = 137
 WIDTH = 236
@@ -97,6 +97,8 @@ def make_scheduler_from_config(optimizer, config):
 def get_head_cls(head):
     if head == 'V1':
         return HeadV1
+    elif head == 'V2':
+        return HeadV2
     else:
         raise Exception('head ' + str(head) + ' is not supported')
 
