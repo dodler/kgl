@@ -87,5 +87,5 @@ class MixupCallback(CriterionCallback):
             return
         data, targets = mixup(data, inp1, inp2, inp3, self.alpha)
 
-        #state.input['features'] = data
+        state.input['features'] = data
         state.input['targets'] = targets

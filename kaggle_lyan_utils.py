@@ -117,8 +117,8 @@ def mixup(data, targets1, targets2, targets3, alpha):
     shuffled_targets2 = targets2[indices]
     shuffled_targets3 = targets3[indices]
 
-    lam = np.random.beta(alpha, alpha)
-    data = data * lam + shuffled_data * (1 - lam)
+    lam = torch.from_numpy(np.random.beta(alpha, alpha, size=data.shape[0]).astype(np.float32))
+    data = data * lam.view(lam.shape[0], 1,1,1) + shuffled_data * (1 - lam).view(lam.shape[0], 1,1,1)
     targets = [targets1, shuffled_targets1, targets2, shuffled_targets2, targets3, shuffled_targets3, lam]
 
     return data, targets
@@ -151,10 +151,6 @@ def mixup_criterion(preds1, preds2, preds3, targets):
                     0.2 * criterion(preds3, shuffled_targets3)
 
     return lam * loss + (1 - lam) * shuffled_loss
-
-    # return lam * criterion(preds1, targets1) + (1 - lam) * criterion(preds1, shuffled_targets1) + \
-    #        lam * criterion(preds2, targets2) + (1 - lam) * criterion(preds2, shuffled_targets2) + \
-    #        lam * criterion(preds3, targets3) + (1 - lam) * criterion(preds3, shuffled_targets3)
 
 
 class GridMask(DualTransform):
@@ -261,6 +257,7 @@ if __name__ == '__main__':
     preds2 = (torch.randn(n, 15) * 10).int()
     preds3 = (torch.randn(n, 20) * 10).int()
 
+    print('doing mixup')
     data, targets = mixup(data, preds1, preds2, preds3, 0.5)
 
     # print(data, targets)
