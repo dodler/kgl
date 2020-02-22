@@ -118,7 +118,8 @@ def mixup(data, targets1, targets2, targets3, alpha):
     shuffled_targets3 = targets3[indices]
 
     lam = torch.from_numpy(np.random.beta(alpha, alpha, size=data.shape[0]).astype(np.float32))
-    data = data * lam.view(lam.shape[0], 1,1,1) + shuffled_data * (1 - lam).view(lam.shape[0], 1,1,1)
+    lam = lam.to(data.device)
+    data = data * lam.view(lam.shape[0], 1, 1, 1) + shuffled_data * (1 - lam).view(lam.shape[0], 1, 1, 1)
     targets = [targets1, shuffled_targets1, targets2, shuffled_targets2, targets3, shuffled_targets3, lam]
 
     return data, targets
