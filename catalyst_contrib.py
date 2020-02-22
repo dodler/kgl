@@ -8,7 +8,7 @@ import torch.nn as nn
 
 logger = logging.getLogger(__name__)
 
-criterion = nn.CrossEntropyLoss(reduction='mean')
+my_criterion = nn.CrossEntropyLoss(reduction='mean')
 
 
 class MixupCallback(CriterionCallback):
@@ -68,7 +68,7 @@ class MixupCallback(CriterionCallback):
             inp1 = state.input['h1_targets']
             inp2 = state.input['h2_targets']
             inp3 = state.input['h3_targets']
-            return 0.7 * criterion(pred1, inp1) + 0.1 * criterion(pred2, inp2) + 0.2 * criterion(pred3, inp3)
+            return 0.7 * my_criterion(pred1, inp1) + 0.1 * my_criterion(pred2, inp2) + 0.2 * my_criterion(pred3, inp3)
         else:
             targets = state.input['targets']
             return mixup_criterion(pred1, pred2, pred3, targets)
@@ -83,10 +83,9 @@ class MixupCallback(CriterionCallback):
         inp2 = state.input['h2_targets']
         inp3 = state.input['h3_targets']
 
-        if not self.is_needed:
+        if not state.loader_name.startswith("train"):
             return
-
         data, targets = mixup(data, inp1, inp2, inp3, self.alpha)
 
-        # state.input['features'] = data
+        #state.input['features'] = data
         state.input['targets'] = targets

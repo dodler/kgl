@@ -10,5 +10,5 @@ config = {
     'T_0': 6,
     'lr': 1e-3,
     'train_aug': 'augmentations.color.v2',
-    'valid_aug': 'augmentations.color.v2',
+    'valid_aug': 'augmentations.geom.v0',
 }

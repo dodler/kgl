@@ -8,12 +8,13 @@ config = {
     'schedule': 'cosine_annealing_warm_restarts',
     'T_0': 6,
     'lr': 4e-3,
-    'early_stop_epochs': 50,
+    'early_stop_epochs': 25,
     'epochs': 150,
     'train_aug': 'augmentations.v1',
     'valid_aug': 'augmentations.v1',
     'img_path': '/home/lyan/train/',
     'mixup': True,
     'mixup_alpha': 0.4,
-    'folds_path': '/home/lyan/Documents/kaggle/bangali_19/folds2.csv',
+    'folds_path':'/home/lyan/Documents/kaggle/bangali_19/folds2.csv',
 }
+
