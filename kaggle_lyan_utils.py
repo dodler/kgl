@@ -142,7 +142,7 @@ def mixup_criterion(preds1, preds2, preds3, targets):
                                        targets[2], targets[3], \
                                        targets[4], targets[5], \
                                        targets[6]
-    criterion = nn.CrossEntropyLoss(reduction='mean')
+    criterion = nn.CrossEntropyLoss(reduction='none')
 
     loss = 0.7 * criterion(preds1, targets1) + \
            0.1 * criterion(preds2, shuffled_targets2) + \
@@ -151,7 +151,8 @@ def mixup_criterion(preds1, preds2, preds3, targets):
                     0.1 * criterion(preds2, shuffled_targets2) + \
                     0.2 * criterion(preds3, shuffled_targets3)
 
-    return lam * loss + (1 - lam) * shuffled_loss
+    result = lam * loss + (1 - lam) * shuffled_loss
+    return result.mean()
 
 
 class GridMask(DualTransform):
