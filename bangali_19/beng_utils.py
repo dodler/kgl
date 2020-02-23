@@ -69,7 +69,7 @@ def get_dict_value_or_default(dict_, key, default_value):
 def make_scheduler_from_config(optimizer, config):
     if 'schedule' in config:
         if config['schedule'] == 'reduce_lr_on_plateau':
-            return ReduceLROnPlateau(optimizer, factor=0.1, patience=5)
+            return ReduceLROnPlateau(optimizer, factor=0.1, patience=10)
         elif config['schedule'] == 'cosine_annealing_warm_restarts':
             T_0 = get_dict_value_or_default(dict_=config, key='T_0', default_value=4)
             return CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=T_0)
