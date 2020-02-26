@@ -15,7 +15,7 @@ def create_net(name):
     }
 
     if name in nets:
-        return nets[name]()
+        return nets[name](pretrained=True)
     else:
         raise Exception('name ' + str(name) + ' is not supported')
 
@@ -28,14 +28,14 @@ class BengDensenet(nn.Module):
         x = self.net.conv_in(x)
         x = self.net.layers(x)
 
-        if self.isfoss_head:
-            return self.cls1(x), self.cls2(x), self.cls3(x)
-        else:
-            x = F.adaptive_avg_pool2d(x, output_size=1)
-            x = self.dropout_layer(x)
-            x = x.view(x.size(0), -1)
+        # if self.isfoss_head:
+        #     return self.cls1(x), self.cls2(x), self.cls3(x)
+        # else:
+        #     x = F.adaptive_avg_pool2d(x, output_size=1)
+        #     x = self.dropout_layer(x)
+        #     x = x.view(x.size(0), -1)
 
-            return self.cls1(x), self.cls2(x), self.cls3(x)
+        return self.cls1(x), self.cls2(x), self.cls3(x)
 
     def __init__(self, name='densenet121', input_bn=True,
                  dropout=0.2, isfoss_head=False, head='V0'):
@@ -65,8 +65,8 @@ class BengDensenet(nn.Module):
 
 
 if __name__ == '__main__':
-    net = BengDensenet(name='densenet201')
-    print(net.net)
+    net = BengDensenet(name='densenet161')
+    # print(net.net)
 
     inp = torch.randn(2, 1, 224, 224)
     x1, x2, x3 = net(inp)

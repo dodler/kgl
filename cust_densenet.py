@@ -178,7 +178,7 @@ def _load_state_dict(model, model_url, progress):
             new_key = res.group(1) + res.group(2)
             state_dict[new_key] = state_dict[key]
             del state_dict[key]
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict, strict=False)
 
 
 def _densenet(arch, growth_rate, block_config, num_init_features, pretrained, progress,

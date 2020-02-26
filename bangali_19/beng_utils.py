@@ -5,6 +5,11 @@ from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, ExponentialLR, CyclicLR, \
     CosineAnnealingWarmRestarts
 
+import sys
+sys.path.append('/home/lyan/Documents/over9000')
+
+from over9000 import Over9000
+
 from bangali_19.beng_augs import train_aug_v0, valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
 from bangali_19.beng_heads import HeadV1, Head, HeadV2
@@ -46,15 +51,14 @@ def bengali_ds_from_folds(img_path='/var/ssd_1t/kaggle_bengali/jpeg_crop/',
                           folds_path='/home/lyan/Documents/kaggle/bangali_19/folds.csv', fold=0,
                           train_aug=train_aug_v0,
                           valid_aug=valid_aug_v0,
-                          isfoss_norm=False,
                           channel_num=1):
     folds = pd.read_csv(folds_path)
 
     train_ids = folds[folds.fold != fold].values
     valid_ids = folds[folds.fold == fold].values
 
-    train_dataset = BengaliDataset(path=img_path, values=train_ids, aug=train_aug, isfoss_norm=isfoss_norm, channel_num=channel_num)
-    valid_dataset = BengaliDataset(path=img_path, values=valid_ids, aug=valid_aug, isfoss_norm=isfoss_norm, channel_num=channel_num)
+    train_dataset = BengaliDataset(path=img_path, values=train_ids, aug=train_aug, channel_num=channel_num)
+    valid_dataset = BengaliDataset(path=img_path, values=valid_ids, aug=valid_aug, channel_num=channel_num)
 
     return train_dataset, valid_dataset
 
@@ -68,6 +72,10 @@ def get_dict_value_or_default(dict_, key, default_value):
 
 def make_scheduler_from_config(optimizer, config):
     if 'schedule' in config:
+
+        if config['schedule'] is None:
+            return None
+
         if config['schedule'] == 'reduce_lr_on_plateau':
             return ReduceLROnPlateau(optimizer, factor=0.1, patience=10)
         elif config['schedule'] == 'cosine_annealing_warm_restarts':

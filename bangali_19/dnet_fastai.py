@@ -1,20 +1,21 @@
-from fastai import *
 from fastai.vision import *
+import torch.nn as nn
+import torch
 
 from kaggle_lyan_utils import Mish
 
 arch = models.densenet121
-
 nunique = [168, 11, 7]
 
 
 class Head(nn.Module):
     def __init__(self, nc, n, ps=0.5):
         super().__init__()
-        layers = [AdaptiveConcatPool2d(), Mish(), nn.Flatten()] + \
+        layers = [AdaptiveConcatPool2d(), Mish(), Flatten()] + \
                  bn_drop_lin(nc * 2, 512, True, ps, Mish()) + \
                  bn_drop_lin(512, n, True, ps)
         self.fc = nn.Sequential(*layers)
+        #         self.fc = nn.Sequential(AdaptiveConcatPool2d(), Flatten(), nn.Linear(nc*2,n), )
         self._init_weight()
 
     def _init_weight(self):

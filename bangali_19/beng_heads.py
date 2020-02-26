@@ -1,5 +1,5 @@
 import torch
-from fastai import AdaptiveConcatPool2d, Flatten, bn_drop_lin
+from fastai.vision import *
 import torch.nn as nn
 import torch.nn.functional as F
 from kaggle_lyan_utils import Mish
@@ -49,7 +49,7 @@ class HeadV1(nn.Module):
         x = self.bn(x)
         x = self.drop(x)
         x = self.lin(x)
-        return self.fc(x)
+        return x
 
 
 class HeadV2(nn.Module):

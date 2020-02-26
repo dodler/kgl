@@ -1,6 +1,10 @@
 import sys
-sys.path.append('/home/lyan/Documents/over9000')
 
+from catalyst.contrib.nn import OneCycleLRWithWarmup
+
+from bangali_19.beng_fastai_dnet import Dnet_1ch
+
+sys.path.append('/home/lyan/Documents/over9000')
 from over9000 import Over9000
 
 import argparse
@@ -9,19 +13,13 @@ import torch
 from catalyst.dl import CriterionCallback
 from catalyst.dl.callbacks import EarlyStoppingCallback, CriterionAggregatorCallback, OptimizerCallback
 from catalyst.dl.runner import SupervisedRunner
-from torch.optim import AdamW, Adam, SGD
 from torch.utils.data import DataLoader
 
 from bangali_19.augmentations import get_augmentation
-from bangali_19.beng_densenet import BengDensenet
-from bangali_19.beng_eff_net import BengEffNetClassifier
-from bangali_19.beng_resnets import BengResnet
-from bangali_19.beng_resnets_3ch import BengResnet3Ch
 from bangali_19.beng_score import score_callback
-from bangali_19.beng_utils import bengali_ds_from_folds, make_scheduler_from_config, get_dict_value_or_default
+from bangali_19.beng_utils import bengali_ds_from_folds, get_dict_value_or_default
 from bangali_19.configs import get_config
 from catalyst_contrib import MixupCallback
-from opt.radam import RAdam
 
 parser = argparse.ArgumentParser(description='Understanding cloud training')
 
@@ -39,62 +37,12 @@ args = parser.parse_args()
 
 config = get_config(name=args.config)
 
-iafoss_head = get_dict_value_or_default(config, key='isfoss_head', default_value=False)
-
-dropout = get_dict_value_or_default(config, key='dropout', default_value=0.2)
-head = get_dict_value_or_default(config, key='head', default_value='V0')
-
-if config['arch'] == 'multi-head':
-    if 'efficientnet' in config['backbone']:
-        model = BengEffNetClassifier(
-            name=config['backbone'],
-            pretrained=config['pretrained'],
-            input_bn=config['in-bn'],
-            dropout=dropout,
-            head=head,
-        )
-    elif 'resnet' in config['backbone'] or 'resnext' in config['backbone'] and not config['backbone'].endswith('_3ch'):
-        model = BengResnet(
-            name=config['backbone'],
-            pretrained=config['pretrained'],
-            input_bn=config['in-bn'],
-            dropout=dropout,
-            isfoss_head=iafoss_head,
-            head=head,
-        )
-    elif 'densenet' in config['backbone']:
-        model = BengDensenet(
-            name=config['backbone'],
-            input_bn=config['in-bn'],
-            dropout=dropout,
-            isfoss_head=iafoss_head,
-            head=head,
-        )
-    elif config['backbone'].endswith('_3ch'):
-        name = config['backbone'].replace('_3ch', '')
-        print(name)
-        model = BengResnet3Ch(
-            name=name,
-            pretrained=config['pretrained'],
-            input_bn=config['in-bn'],
-            dropout=dropout,
-            isfoss_head=iafoss_head,
-            head=head,
-        )
-    else:
-        raise Exception('backbone ' + config['backbone'] + ' is not supported')
-else:
-    raise Exception(config['arch'] + ' is not supported')
-
-for p in model.parameters():
-    p.requires_grad=True
+model = Dnet_1ch()
 
 num_workers = 8
 bs = args.batch_size
 
 channel_num = 1
-if config['backbone'].endswith('_3ch'):
-    channel_num = 3
 
 train_aug = get_dict_value_or_default(config, 'train_aug', 'v0')
 valid_aug = get_dict_value_or_default(config, 'valid_aug', 'v0')
@@ -124,24 +72,17 @@ loaders = {
 num_epochs = get_dict_value_or_default(config, 'epochs', 100)
 logdir = "/var/data/bengali" + str(args.fold) + '_config_' + str(args.config) + '_comment_' + args.comment
 
-lr = get_dict_value_or_default(dict_=config, key='lr', default_value=args.lr)
+lr = 1e-2
 
-if config['opt'] == 'adamw':
-    optimizer = AdamW(params=model.parameters(), lr=lr)
-elif config['opt'] == 'adam':
-    optimizer = Adam(params=model.parameters(), lr=lr)
-elif config['opt'] == 'sgd':
-    optimizer = SGD(params=model.parameters(), lr=lr, momentum=0.9, nesterov=True)
-elif config['opt'] == 'rmsprop':
-    optimizer = torch.optim.RMSprop(params=model.parameters(), lr=lr)
-elif config['opt'] == 'radam':
-    optimizer = RAdam(params=model.parameters(), lr=lr)
-elif config['opt'] == 'over9000':
-    optimizer = Over9000(params=model.parameters(), lr=lr)
-else:
-    raise Exception(config['opt'] + ' is not supported')
+optimizer = Over9000(params=model.parameters(), lr=lr)
 
-scheduler = make_scheduler_from_config(optimizer=optimizer, config=config)
+scheduler = OneCycleLRWithWarmup(
+    optimizer,
+    num_steps=num_epochs,
+    lr_range=(0.2e-2, 1e-2),
+    warmup_steps=2,
+    momentum_range=(1e-3, 0.1e-1)
+)
 
 criterion = {
     "h1": torch.nn.CrossEntropyLoss(),
@@ -203,10 +144,8 @@ else:
 
 callbacks.extend([
     score_callback,
+    EarlyStoppingCallback(metric='weight_recall', patience=early_stop_epochs, min_delta=0.001)
 ])
-
-if get_dict_value_or_default(config, 'early_stop', default_value=True):
-    callbacks.append(EarlyStoppingCallback(metric='weight_recall', patience=early_stop_epochs, min_delta=0.001))
 
 callbacks.append(
     OptimizerCallback(grad_clip_params={'params': 1.0}),

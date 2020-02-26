@@ -1,8 +1,9 @@
 import torch
+import torch.nn as nn
 from efficientnet_pytorch import EfficientNet
 from efficientnet_pytorch.utils import efficientnet_params, get_same_padding_conv2d
-import torch.nn as nn
-import torch.nn.functional as F
+
+from bangali_19.beng_utils import get_head
 
 
 class BengEffNetClassifier(nn.Module):
@@ -11,14 +12,9 @@ class BengEffNetClassifier(nn.Module):
             x = self.bn_in(x)
         x = self.net.extract_features(x)
 
-        # Pooling and final linear layer
-        x = F.adaptive_avg_pool2d(x, 1).squeeze(-1).squeeze(-1)
-        if self.net._dropout:
-            x = F.dropout(x, p=self.net._dropout, training=self.training)
-
         return self.cls1(x), self.cls2(x), self.cls3(x)
 
-    def __init__(self, name='efficientnet-b0', pretrained=True, input_bn=True, dropout=0.3, head=None):
+    def __init__(self, name='efficientnet-b0', pretrained=True, input_bn=True, dropout=0.3, head='V1'):
         super().__init__()
         self.input_bn = input_bn
         self.name = name
@@ -40,19 +36,18 @@ class BengEffNetClassifier(nn.Module):
             'efficientnet-b4': 1792,
             'efficientnet-b7': 2560
         }
+
         self.net._conv_stem = Conv2d(1, conv_stem_filts[name], kernel_size=(3, 3), stride=(2, 2), bias=False)
 
-        self.cls1 = nn.Linear(linear_size[name], 168)
-        self.cls2 = nn.Linear(linear_size[name], 11)
-        self.cls3 = nn.Linear(linear_size[name], 7)
+        self.cls1, self.cls2, self.cls3 = get_head(False, head, in_size=linear_size[name])
 
         if input_bn:
             self.bn_in = nn.BatchNorm2d(1)
 
 
 if __name__ == '__main__':
-    net = BengEffNetClassifier(name='efficientnet-b7')
-    print(net.net)
+    net = BengEffNetClassifier(name='efficientnet-b4')
+    # print(net.net)
 
     inp = torch.randn(2, 1, 224, 224)
     x1, x2, x3 = net(inp)
