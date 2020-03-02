@@ -12,7 +12,7 @@ from over9000 import Over9000
 
 from bangali_19.beng_augs import train_aug_v0, valid_aug_v0
 from bangali_19.beng_data import BengaliDataset
-from bangali_19.beng_heads import HeadV1, Head, HeadV2
+from bangali_19.beng_heads import HeadV1, HeadV3, HeadV2
 
 HEIGHT = 137
 WIDTH = 236
@@ -107,6 +107,8 @@ def get_head_cls(head):
         return HeadV1
     elif head == 'V2':
         return HeadV2
+    elif head == 'V3':
+        return HeadV3
     else:
         raise Exception('head ' + str(head) + ' is not supported')
 
@@ -118,9 +120,9 @@ def get_head(isfoss_head, head, in_size):
                head_cls(in_size, 11), \
                head_cls(in_size, 7)
     if isfoss_head:
-        return Head(in_size, 168), \
-               Head(in_size, 11), \
-               Head(in_size, 7)
+        return HeadV3(in_size, 168), \
+               HeadV3(in_size, 11), \
+               HeadV3(in_size, 7)
     else:
         return nn.Linear(in_size, 168), \
                nn.Linear(in_size, 11), \

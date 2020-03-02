@@ -11,7 +11,7 @@ from deep_fake.deep_fake_data import DeepFakeDs
 
 FOLD = 0
 
-full_df = pd.read_csv('/home/lyan/Documents/kaggle/deep_fake/train_crops.csv', index_col=0)
+full_df = pd.read_csv('/home/lyan/Documents/kaggle/deep_fake/fakes_folds.csv', index_col=0)
 valid_df = full_df[full_df.fold == FOLD]
 train_df = full_df[full_df.fold != FOLD]
 train_ds = DeepFakeDs(df=train_df, aug=train_aug)
@@ -19,8 +19,8 @@ valid_ds = DeepFakeDs(df=valid_df, aug=valid_aug)
 
 sampler = BalancedBatchSampler(dataset=train_ds, labels=train_ds.labels)
 
-train_loader = torch.utils.data.DataLoader(train_ds, shuffle=True, batch_size=64, num_workers=10)
-valid_loader = torch.utils.data.DataLoader(valid_ds, shuffle=False, batch_size=64, num_workers=10)
+train_loader = torch.utils.data.DataLoader(train_ds, shuffle=True, batch_size=32, num_workers=10)
+valid_loader = torch.utils.data.DataLoader(valid_ds, shuffle=False, batch_size=32, num_workers=10)
 
 
 class Squeeze(torch.nn.Module):
@@ -34,7 +34,7 @@ model._fc = torch.nn.Sequential(
     Squeeze(),
 )
 
-experiment_name = 'deepfake_crops_effnet_b3_256_v1'
+experiment_name = 'deepfake_crops_effnet_b3_224_v1'
 
 lr = 1e-3
 

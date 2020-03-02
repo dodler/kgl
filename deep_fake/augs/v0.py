@@ -9,7 +9,7 @@ train_aug = Compose([
     RandomRotate90(),
     Flip(),
     Transpose(),
-    Resize(width=256, height=256, always_apply=True),
+    Resize(width=224, height=224, always_apply=True),
     Normalize(
        mean=[0.485, 0.456, 0.406],
        std=[0.229, 0.224, 0.225]
@@ -18,7 +18,7 @@ train_aug = Compose([
 ], p=p)
 
 valid_aug = Compose([
-    Resize(width=256, height=256, always_apply=True),
+    Resize(width=224, height=224, always_apply=True),
     Normalize(
        mean=[0.485, 0.456, 0.406],
        std=[0.229, 0.224, 0.225]

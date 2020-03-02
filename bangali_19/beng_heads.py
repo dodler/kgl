@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from kaggle_lyan_utils import Mish
 
 
-class Head(nn.Module):
+class HeadV3(nn.Module):
     def __init__(self, nc, n, ps=0.5):
         super().__init__()
         layers = [AdaptiveConcatPool2d(), Mish(), Flatten()] + \
@@ -82,4 +82,4 @@ class HeadV2(nn.Module):
     def forward(self, x):
         # x = F.adaptive_avg_pool2d(x, output_size=1)
         # x = x.view(x.size(0), -1)
-        self.head_layers(x)
+        return self.head_layers(x)
