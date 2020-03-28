@@ -11,7 +11,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, RandomSampler
 
 import pretrainedmodels as pm
-from deep_fake.augs.v0 import train_aug, valid_aug
+from deep_fake.augs.v0 import augs
 from deep_fake.deep_fake_data import ImageListDs
 
 FAKE_LABEL = 1
@@ -79,6 +79,8 @@ print(Counter(train.labels.values))
 print(Counter(valid_labels))
 
 BATCH_SIZE = 78 * 2
+
+train_aug, valid_aug = augs['default']
 
 
 class DeepFakeModule(pl.LightningModule):

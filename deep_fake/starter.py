@@ -9,7 +9,9 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score
+from efficientnet_pytorch import EfficientNet
+import pretrainedmodels as pm
+from sklearn.metrics import roc_auc_score, f1_score
 from torch.utils.data import DataLoader, RandomSampler
 
 from deep_fake.augs.v0 import augs
@@ -115,43 +117,47 @@ class DeepFakeModule(pl.LightningModule):
         self.val_labels = []
 
     def forward(self, x):
-        return self.model(x)
+        x = self.model(x)
+        return x
 
     def training_step(self, batch, batch_nb):
         x, y = batch
         x = x.float()
-        # y = y.float()
         y_hat = self.forward(x)
         loss = F.cross_entropy(y_hat, y)
         tensorboard_logs = {'train_loss': loss}
 
-        with torch.no_grad():
-            pred = torch.softmax(y_hat, axis=1).detach().cpu().numpy()
-            y_ = y.detach().cpu().numpy()
-            try:
-                score = roc_auc_score(y_, pred[:, 1])
-            except:
-                score = 0
+        y_cpu = y.to('cpu')
+        y_hat_cpu = y_hat.to('cpu')
 
-        tensorboard_logs['trn_roc_auc'] = score
+        try:
+            tensorboard_logs['trn/roc_auc'] = roc_auc_score(
+                y_cpu.numpy(),
+                torch.softmax(y_hat_cpu, dim=1).cpu().numpy()[:, 1]
+            )
+            tensorboard_logs['trn/f1'] = f1_score(
+                y_cpu.numpy(),
+                torch.softmax(y_hat_cpu, dim=1).cpu().numpy()[:, 1]
+            )
+        except:
+            tensorboard_logs['trn/roc_auc'] = 0
+
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_nb):
-        # OPTIONAL
         x, y = batch
         x = x.float()
-        # y = y.float()
         y_hat = self.forward(x)
-        with torch.no_grad():
-            pred = torch.softmax(y_hat, axis=1).detach().cpu().numpy()
-            y_ = y.detach().cpu().numpy()
-            self.val_labels.append(y_)
-            self.val_preds.append(pred)
+
+        y_cpu = y.to('cpu')
+        y_hat_cpu = y_hat.to('cpu')
+
+        self.val_labels.append(y_cpu.numpy())
+        self.val_preds.append(torch.softmax(y_hat_cpu, dim=1).numpy())
 
         return {'val_loss': F.cross_entropy(y_hat, y)}
 
     def validation_epoch_end(self, outputs):
-        # OPTIONAL
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss}
         preds = np.concatenate(self.val_preds)
@@ -171,7 +177,7 @@ class DeepFakeModule(pl.LightningModule):
                 }
 
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=1e-4)
 
     def train_dataloader(self):
         train_ds = ImageListDs(images=train.images.values, labels=train.labels.values, aug=train_aug)
@@ -188,5 +194,5 @@ class DeepFakeModule(pl.LightningModule):
 torch.multiprocessing.freeze_support()
 deep_fake_module = DeepFakeModule()
 
-trainer = pl.Trainer(gpus=torch.cuda.device_count(), distributed_backend='dp', max_epochs=30)
+trainer = pl.Trainer(gpus=torch.cuda.device_count(), max_epochs=30, )
 trainer.fit(deep_fake_module)

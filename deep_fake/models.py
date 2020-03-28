@@ -9,6 +9,16 @@ def get_model(name):
         model._fc = torch.nn.Linear(1536, 2)
         return model
 
+    if name == 'effb1':
+        model = EfficientNet.from_pretrained('efficientnet-b1')
+        model._fc = torch.nn.Linear(1280, 2)
+        return model
+
+    if name == 'dnet161':
+        model = pm.densenet161()
+        model.last_linear = torch.nn.Linear(2048, 2)
+        return model
+
     if name == 'effb0':
         model = EfficientNet.from_pretrained('efficientnet-b0')
         model._fc = torch.nn.Linear(1280, 2)
@@ -28,3 +38,5 @@ def get_model(name):
         model = EfficientNet.from_pretrained('efficientnet-b7')
         model._fc = torch.nn.Linear(2048, 2)
         return model
+
+    raise Exception('model {} is not supported'.format(name))
