@@ -10,19 +10,12 @@ train_aug = Compose([
     Flip(),
     Transpose(),
     Resize(width=224, height=224, always_apply=True),
-    Normalize(
-       mean=[0.485, 0.456, 0.406],
-       std=[0.229, 0.224, 0.225]
-    ),
-    ToTensor()
+    ToTensor(normalize={'mean': [0.485, 0.456, 0.406],
+                        'std': [0.229, 0.224, 0.225]})
 ], p=p)
 
 valid_aug = Compose([
     Resize(width=224, height=224, always_apply=True),
-    Normalize(
-       mean=[0.485, 0.456, 0.406],
-       std=[0.229, 0.224, 0.225]
-    ),
-    ToTensor()
-], p=p)
-
+    ToTensor(normalize={'mean': [0.485, 0.456, 0.406],
+                        'std': [0.229, 0.224, 0.225]}),
+], p=1.0)

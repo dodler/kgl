@@ -1,10 +1,11 @@
 from collections import OrderedDict
-import torch
-from catalyst.dl import SupervisedRunner, AccuracyCallback, EarlyStoppingCallback, MultiMetricCallback
-from efficientnet_pytorch import EfficientNet
-import pandas as pd
 
-from common.metrics import catalyst_roc_auc, catalyst_logloss, catalyst_acc_score
+import pandas as pd
+import torch
+from catalyst.dl import SupervisedRunner, EarlyStoppingCallback, MultiMetricCallback
+from efficientnet_pytorch import EfficientNet
+
+from common.metrics import catalyst_roc_auc, catalyst_logloss
 from common.sampler import BalancedBatchSampler
 from deep_fake.augs.v0 import train_aug, valid_aug
 from deep_fake.deep_fake_data import DeepFakeDs
@@ -64,10 +65,6 @@ runner.train(
                             output_key="logits",
                             list_args=['_']),
         MultiMetricCallback(metric_fn=catalyst_logloss, prefix='logloss',
-                            input_key="targets",
-                            output_key="logits",
-                            list_args=['_']),
-        MultiMetricCallback(metric_fn=catalyst_acc_score, prefix='acc',
                             input_key="targets",
                             output_key="logits",
                             list_args=['_']),
