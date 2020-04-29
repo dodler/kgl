@@ -44,14 +44,13 @@ bs = args.batch_size
 
 channel_num = 1
 
-train_aug = get_dict_value_or_default(config, 'train_aug', 'v0')
-valid_aug = get_dict_value_or_default(config, 'valid_aug', 'v0')
+train_aug = 'augmentations.compose.v2_heavy_norm'
+valid_aug = 'augmentations.compose.v2_heavy_norm'
 train_aug, _ = get_augmentation(train_aug)
 _, valid_aug = get_augmentation(valid_aug)
 
-img_path = get_dict_value_or_default(config, 'img_path', '/var/ssd_1t/kaggle_bengali/jpeg_crop/')
-
-folds_path = get_dict_value_or_default(config, 'folds_path', '/home/lyan/Documents/kaggle/bangali_19/folds.csv')
+img_path = '/home/lyan/train/'
+folds_path = '/home/lyan/Documents/kaggle/bangali_19/folds5.csv'
 
 train_dataset, valid_dataset = bengali_ds_from_folds(
     img_path=img_path,
@@ -69,7 +68,7 @@ loaders = {
     "valid": valid_loader
 }
 
-num_epochs = get_dict_value_or_default(config, 'epochs', 100)
+num_epochs = 50
 logdir = "/var/data/bengali" + str(args.fold) + '_config_' + str(args.config) + '_comment_' + args.comment
 
 lr = 1e-2
