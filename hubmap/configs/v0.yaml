@@ -1,0 +1,9 @@
+optimizer: adam
+batch_size: 32
+num_workers: 4
+encoder:
+  name: resnet18
+  type: Unet
+train_params:
+  epochs: 200
+  lr: 5e-4

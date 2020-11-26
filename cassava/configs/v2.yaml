@@ -1,0 +1,14 @@
+optimizer: adam
+batch_size: 16
+num_workers: 4
+backbone: resnet34
+head: v0
+img_size: 600
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 1
+  T_0: 10
+train_params:
+  epochs: 200
+  lr: 5e-4
+  num_workers: 2
