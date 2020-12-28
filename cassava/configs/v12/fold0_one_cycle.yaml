@@ -1,0 +1,18 @@
+optimizer: adamw_gcc2
+batch_size: 16
+num_workers: 4
+backbone: resnet18
+head: v0
+n_out: 512
+img_size: 600
+scheduler:
+  type: OneCycleLR
+  max_lr: 5e-4
+  epochs: 20
+  steps_per_epoch: 10
+train_params:
+  epochs: 200
+  lr: 1e-4
+  num_workers: 2
+  batch_size: 16
+  fold: 0

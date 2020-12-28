@@ -1,0 +1,18 @@
+optimizer: adamw_gcc2
+batch_size: 16
+num_workers: 4
+backbone: resnet18
+head: v0
+n_out: 512
+img_size: 600
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 2
+  T_0: 30
+  eta_min: 1e-6
+train_params:
+  epochs: 200
+  lr: 5e-4
+  num_workers: 2
+  batch_size: 16
+  fold: 0

@@ -8,7 +8,7 @@ scheduler:
   T_0: 10
   eta_min: 1e-8
 model:
-  backbone: resnet18
+  backbone: timm-efficientnet-b4
   type: Unet
 train_params:
   epochs: 200

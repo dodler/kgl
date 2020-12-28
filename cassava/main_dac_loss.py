@@ -26,33 +26,8 @@ from cassava.smoothed_loss import SmoothCrossEntropyLoss
 from grad_cent import AdamW_GCC2
 from seed import seed_everything
 
-from cutmix.utils import CutMixCrossEntropyLoss
-from cutmix.cutmix import CutMix
-
 SEED = 2020
 seed_everything(SEED)
-
-
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
-    '''Returns mixed inputs, pairs of targets, and lambda'''
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
-
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
-
-
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
 def get_or_default(d, key, default_value):
@@ -75,26 +50,6 @@ class CassavaModule(pl.LightningModule):
         self.aug_type = get_or_default(cfg, 'aug', '0')
         self.csv_path = get_or_default(cfg, 'csv_path', 'input/train_folds.csv')
         self.trn_path = get_or_default(cfg, 'image_path', 'input/train_merged')
-        self.mixup = get_or_default(cfg, 'mixup', False)
-        self.do_cutmix = False
-
-        if 'crit' not in cfg:
-            self.crit = nn.CrossEntropyLoss()
-        elif cfg['crit'] == 'focal':
-            self.crit = FocalLoss()
-        elif cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(smoothing=0.05)
-        elif cfg['crit'] == 'cutmix':
-            self.crit = CutMixCrossEntropyLoss(True)
-            self.do_cutmix = True
-        elif self.cfg['crit'] == 'focal_cosine':
-            self.crit = FocalCosineLoss()
-        elif self.cfg['crit'] == 'ldam':
-            labels_list = list(Counter(pd.read_csv(self.csv_path).label.values).values())
-            self.crit = LDAMLoss(labels_list)
-        else:
-            raise Exception('criterion not specified')
-        print('mixup', self.mixup)
 
         print('using fold', self.fold)
 
@@ -104,22 +59,12 @@ class CassavaModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
 
-        if self.mixup:
-            x, y_a, y_b, lam = mixup_data(x, y)
-
         y_hat = self.forward(x)
-
-        if self.mixup:
-            loss = mixup_criterion(self.crit, y_hat, y_a, y_b, lam)
-        elif self.do_cutmix:
-            loss = self.crit(y_hat, y)
-        else:
-            loss = self.crit(y_hat, y)
+        loss = self.crit(y_hat, y)
 
         self.log('trn/_loss', loss)
-        if not self.do_cutmix:
-            acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-            self.log('trn/_acc', acc, prog_bar=True)
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
+        self.log('trn/_acc', acc, prog_bar=True)
 
         return loss
 
@@ -223,8 +168,8 @@ if __name__ == '__main__':
     lrm = LearningRateMonitor()
     mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, )
     precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
-    trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
+    grad_clip = float(get_or_default(cfg, 'grad_clip', 0))
+    trainer = pl.Trainer(gpus=1, max_epochs=200, callbacks=[early_stop, lrm, mdl_ckpt],
                          logger=logger, precision=precision, gradient_clip_val=grad_clip)
 
     trainer.fit(module)

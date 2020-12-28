@@ -1,5 +1,4 @@
 import argparse
-from collections import Counter
 
 import albumentations as alb
 import numpy as np
@@ -13,46 +12,17 @@ from benedict import benedict
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_toolbelt.losses import FocalLoss
 from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
-from cassava.focal_cosine_loss import FocalCosineLoss
-from cassava.ldam import LDAMLoss
 from cassava.model import CassavaModel
-from cassava.smoothed_loss import SmoothCrossEntropyLoss
 from grad_cent import AdamW_GCC2
 from seed import seed_everything
 
-from cutmix.utils import CutMixCrossEntropyLoss
-from cutmix.cutmix import CutMix
-
 SEED = 2020
 seed_everything(SEED)
-
-
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
-    '''Returns mixed inputs, pairs of targets, and lambda'''
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
-
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
-
-
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
 def get_or_default(d, key, default_value):
@@ -76,24 +46,9 @@ class CassavaModule(pl.LightningModule):
         self.csv_path = get_or_default(cfg, 'csv_path', 'input/train_folds.csv')
         self.trn_path = get_or_default(cfg, 'image_path', 'input/train_merged')
         self.mixup = get_or_default(cfg, 'mixup', False)
-        self.do_cutmix = False
+        self.teacher_logits = np.load('train_logits.npy')
 
-        if 'crit' not in cfg:
-            self.crit = nn.CrossEntropyLoss()
-        elif cfg['crit'] == 'focal':
-            self.crit = FocalLoss()
-        elif cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(smoothing=0.05)
-        elif cfg['crit'] == 'cutmix':
-            self.crit = CutMixCrossEntropyLoss(True)
-            self.do_cutmix = True
-        elif self.cfg['crit'] == 'focal_cosine':
-            self.crit = FocalCosineLoss()
-        elif self.cfg['crit'] == 'ldam':
-            labels_list = list(Counter(pd.read_csv(self.csv_path).label.values).values())
-            self.crit = LDAMLoss(labels_list)
-        else:
-            raise Exception('criterion not specified')
+        self.crit = nn.CrossEntropyLoss()
         print('mixup', self.mixup)
 
         print('using fold', self.fold)
@@ -102,24 +57,19 @@ class CassavaModule(pl.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-
-        if self.mixup:
-            x, y_a, y_b, lam = mixup_data(x, y)
+        x, y, idx = batch
+        idx = idx.detach().cpu().numpy()
 
         y_hat = self.forward(x)
 
-        if self.mixup:
-            loss = mixup_criterion(self.crit, y_hat, y_a, y_b, lam)
-        elif self.do_cutmix:
-            loss = self.crit(y_hat, y)
-        else:
-            loss = self.crit(y_hat, y)
+        teacher_logits = torch.from_numpy(self.teacher_logits[:, idx, :].mean(axis=0)).to(0)
+        teacher_loss = F.kl_div(y_hat, teacher_logits) * 0.05
+        loss = self.crit(y_hat, y) + teacher_loss
 
         self.log('trn/_loss', loss)
-        if not self.do_cutmix:
-            acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-            self.log('trn/_acc', acc, prog_bar=True)
+        self.log('trn/_teacher_loss', teacher_loss)
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
+        self.log('trn/_acc', acc, prog_bar=True)
 
         return loss
 
@@ -155,9 +105,7 @@ class CassavaModule(pl.LightningModule):
 
         self.opt = optimizer
 
-        if self.cfg['scheduler']['type'] == 'none':
-            sched = None
-        elif self.cfg['scheduler']['type'] == 'CosineAnnealingWarmRestarts':
+        if self.cfg['scheduler']['type'] == 'CosineAnnealingWarmRestarts':
             T_mult = self.cfg['scheduler']['T_mult']
             T_0 = self.cfg['scheduler']['T_0']
             eta_min = float(self.cfg['scheduler']['eta_min'])
@@ -168,14 +116,9 @@ class CassavaModule(pl.LightningModule):
             epochs = cfg['scheduler']['epochs']
             sched = OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=steps_per_epoch, epochs=epochs)
         else:
-            raise Exception('scheduler {} not supported'.format(self.cfg['scheduler']['type']))
-        if sched is not None:
-            sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
-
-        if sched is not None:
-            return [optimizer], [sched]
-        else:
-            return optimizer
+            raise Exception('scheduler {} not supported')
+        sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
+        return [optimizer], [sched]
 
     def train_dataloader(self):
 
@@ -183,10 +126,7 @@ class CassavaModule(pl.LightningModule):
 
         train = pd.read_csv(self.csv_path)
         trn_ds = CassavaDs(df=train[train.fold != self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
-                           aug=trn_aug, path=self.trn_path)
-        if self.do_cutmix:
-            trn_ds = CutMix(trn_ds, num_class=5, beta=1.0, prob=0.5, num_mix=2)
-
+                           aug=trn_aug, path=self.trn_path, return_index=True)
         trn_dl = torch.utils.data.DataLoader(trn_ds, shuffle=True,
                                              batch_size=self.batch_size,
                                              num_workers=self.num_workers)
@@ -202,7 +142,7 @@ class CassavaModule(pl.LightningModule):
         train = pd.read_csv(self.csv_path)
 
         val_ds = CassavaDs(df=train[train.fold == self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
-                           aug=val_aug, path=self.trn_path)
+                           aug=val_aug, path=self.trn_path, return_index=False)
         val_dl = torch.utils.data.DataLoader(val_ds, shuffle=False,
                                              batch_size=self.batch_size,
                                              num_workers=self.num_workers)
@@ -222,9 +162,7 @@ if __name__ == '__main__':
     logger = TensorBoardLogger("lightning_logs", name=args.config)
     lrm = LearningRateMonitor()
     mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, )
-    precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
-    trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
-                         logger=logger, precision=precision, gradient_clip_val=grad_clip)
+    trainer = pl.Trainer(gpus=1, max_epochs=200, callbacks=[early_stop, lrm, mdl_ckpt],
+                         logger=logger, gradient_clip_val=1.0)
 
     trainer.fit(module)

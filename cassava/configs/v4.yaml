@@ -1,0 +1,16 @@
+optimizer: adam
+batch_size: 16
+num_workers: 4
+backbone: resnest50d
+n_out: 2048
+head: v0
+img_size: 320
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 1
+  T_0: 20
+  eta_min: 1e-7
+train_params:
+  epochs: 200
+  lr: 1e-3
+  num_workers: 2

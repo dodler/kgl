@@ -1,5 +1,4 @@
 import argparse
-from collections import Counter
 
 import albumentations as alb
 import numpy as np
@@ -19,9 +18,8 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
-from cassava.focal_cosine_loss import FocalCosineLoss
-from cassava.ldam import LDAMLoss
 from cassava.model import CassavaModel
+from cassava.rev_grad import RevGrad
 from cassava.smoothed_loss import SmoothCrossEntropyLoss
 from grad_cent import AdamW_GCC2
 from seed import seed_everything
@@ -78,20 +76,23 @@ class CassavaModule(pl.LightningModule):
         self.mixup = get_or_default(cfg, 'mixup', False)
         self.do_cutmix = False
 
+        self.disc_is_healty = nn.Sequential(
+            nn.Linear(self.model.n_out, 256),
+            nn.BatchNorm1d(256),
+            nn.Tanh(),
+            nn.Linear(256, 1),
+            RevGrad(),
+        )
+
         if 'crit' not in cfg:
             self.crit = nn.CrossEntropyLoss()
         elif cfg['crit'] == 'focal':
             self.crit = FocalLoss()
         elif cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(smoothing=0.05)
+            self.crit = SmoothCrossEntropyLoss()
         elif cfg['crit'] == 'cutmix':
             self.crit = CutMixCrossEntropyLoss(True)
             self.do_cutmix = True
-        elif self.cfg['crit'] == 'focal_cosine':
-            self.crit = FocalCosineLoss()
-        elif self.cfg['crit'] == 'ldam':
-            labels_list = list(Counter(pd.read_csv(self.csv_path).label.values).values())
-            self.crit = LDAMLoss(labels_list)
         else:
             raise Exception('criterion not specified')
         print('mixup', self.mixup)
@@ -99,33 +100,30 @@ class CassavaModule(pl.LightningModule):
         print('using fold', self.fold)
 
     def forward(self, x):
-        return self.model(x)
+        x = self.model.backbone.forward_features(x)
+        x = self.model.pool(x).squeeze()
+        return self.model.head(x), self.disc_is_healty(x)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+        y_hat, y_is_healthy = self.forward(x)
+        y_h_gt = torch.zeros_like(y_is_healthy).squeeze()
+        y_h_gt[torch.where(y == 4)[0]] = 1
+        y_h_gt = y_h_gt.unsqueeze(1)
+        loss = self.crit(y_hat, y)
+        loss_is_healthy = F.binary_cross_entropy_with_logits(y_is_healthy, y_h_gt)
+        loss = loss + 0.1 * loss_is_healthy
 
-        if self.mixup:
-            x, y_a, y_b, lam = mixup_data(x, y)
-
-        y_hat = self.forward(x)
-
-        if self.mixup:
-            loss = mixup_criterion(self.crit, y_hat, y_a, y_b, lam)
-        elif self.do_cutmix:
-            loss = self.crit(y_hat, y)
-        else:
-            loss = self.crit(y_hat, y)
-
+        self.log('trn/_loss_is_healthy', loss_is_healthy.item())
         self.log('trn/_loss', loss)
-        if not self.do_cutmix:
-            acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-            self.log('trn/_acc', acc, prog_bar=True)
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
+        self.log('trn/_acc', acc, prog_bar=True)
 
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
+        y_hat, _ = self.forward(x)
         loss = F.cross_entropy(y_hat, y)
         acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
 
@@ -155,9 +153,7 @@ class CassavaModule(pl.LightningModule):
 
         self.opt = optimizer
 
-        if self.cfg['scheduler']['type'] == 'none':
-            sched = None
-        elif self.cfg['scheduler']['type'] == 'CosineAnnealingWarmRestarts':
+        if self.cfg['scheduler']['type'] == 'CosineAnnealingWarmRestarts':
             T_mult = self.cfg['scheduler']['T_mult']
             T_0 = self.cfg['scheduler']['T_0']
             eta_min = float(self.cfg['scheduler']['eta_min'])
@@ -168,14 +164,9 @@ class CassavaModule(pl.LightningModule):
             epochs = cfg['scheduler']['epochs']
             sched = OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=steps_per_epoch, epochs=epochs)
         else:
-            raise Exception('scheduler {} not supported'.format(self.cfg['scheduler']['type']))
-        if sched is not None:
-            sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
-
-        if sched is not None:
-            return [optimizer], [sched]
-        else:
-            return optimizer
+            raise Exception('scheduler {} not supported')
+        sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
+        return [optimizer], [sched]
 
     def train_dataloader(self):
 
@@ -222,9 +213,7 @@ if __name__ == '__main__':
     logger = TensorBoardLogger("lightning_logs", name=args.config)
     lrm = LearningRateMonitor()
     mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, )
-    precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
-    trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
-                         logger=logger, precision=precision, gradient_clip_val=grad_clip)
+    trainer = pl.Trainer(gpus=1, max_epochs=200, callbacks=[early_stop, lrm, mdl_ckpt],
+                         logger=logger, gradient_clip_val=1.0, precision=16)
 
     trainer.fit(module)

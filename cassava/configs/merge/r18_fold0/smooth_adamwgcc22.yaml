@@ -1,0 +1,21 @@
+optimizer: adamw_gcc2
+batch_size: 16
+num_workers: 4
+backbone: resnet18
+head: v0
+n_out: 512
+img_size: 512
+trn_path: input/train_merged
+csv_path: input/train_folds_merged.csv
+crit: smooth
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 1
+  T_0: 20
+  eta_min: 5e-8
+train_params:
+  epochs: 200
+  lr: 5e-4
+  num_workers: 4
+  batch_size: 128
+  fold: 0

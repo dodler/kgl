@@ -1,5 +1,5 @@
 import argparse
-from collections import Counter
+from typing import Optional, Callable
 
 import albumentations as alb
 import numpy as np
@@ -13,46 +13,19 @@ from benedict import benedict
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_toolbelt.losses import FocalLoss
 from sklearn.metrics import accuracy_score
+from torch.optim import Optimizer
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
-from cassava.focal_cosine_loss import FocalCosineLoss
-from cassava.ldam import LDAMLoss
+from cassava.loss_coteaching import loss_coteaching, loss_coteaching_plus
 from cassava.model import CassavaModel
-from cassava.smoothed_loss import SmoothCrossEntropyLoss
 from grad_cent import AdamW_GCC2
 from seed import seed_everything
 
-from cutmix.utils import CutMixCrossEntropyLoss
-from cutmix.cutmix import CutMix
-
 SEED = 2020
 seed_everything(SEED)
-
-
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
-    '''Returns mixed inputs, pairs of targets, and lambda'''
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
-
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
-
-
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
 def get_or_default(d, key, default_value):
@@ -62,12 +35,30 @@ def get_or_default(d, key, default_value):
         return default_value
 
 
+# define drop rate schedule
+def gen_forget_rate(fr_type='type_1'):
+    forget_rate = 0.2
+    num_gradual = 10
+    if fr_type == 'type_1':
+        rate_schedule = np.ones(200) * forget_rate
+        rate_schedule[:num_gradual] = np.linspace(0, forget_rate, num_gradual)
+
+    # if fr_type=='type_2':
+    #    rate_schedule = np.ones(args.n_epoch)*forget_rate
+    #    rate_schedule[:args.num_gradual] = np.linspace(0, forget_rate, args.num_gradual)
+    #    rate_schedule[args.num_gradual:] = np.linspace(forget_rate, 2*forget_rate, args.n_epoch-args.num_gradual)
+
+    return rate_schedule
+
+
 class CassavaModule(pl.LightningModule):
 
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         self.model = CassavaModel(cfg=cfg)
+        self.model2 = CassavaModel(cfg=cfg)
+
         trn_params = cfg['train_params']
         self.fold = get_or_default(trn_params, 'fold', 0)
         self.batch_size = get_or_default(trn_params, 'batch_size', 16)
@@ -78,23 +69,10 @@ class CassavaModule(pl.LightningModule):
         self.mixup = get_or_default(cfg, 'mixup', False)
         self.do_cutmix = False
 
-        if 'crit' not in cfg:
-            self.crit = nn.CrossEntropyLoss()
-        elif cfg['crit'] == 'focal':
-            self.crit = FocalLoss()
-        elif cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(smoothing=0.05)
-        elif cfg['crit'] == 'cutmix':
-            self.crit = CutMixCrossEntropyLoss(True)
-            self.do_cutmix = True
-        elif self.cfg['crit'] == 'focal_cosine':
-            self.crit = FocalCosineLoss()
-        elif self.cfg['crit'] == 'ldam':
-            labels_list = list(Counter(pd.read_csv(self.csv_path).label.values).values())
-            self.crit = LDAMLoss(labels_list)
-        else:
-            raise Exception('criterion not specified')
+        self.crit = nn.CrossEntropyLoss()
+        self.init_epoch = 10
         print('mixup', self.mixup)
+        self.rate_schedule = gen_forget_rate()
 
         print('using fold', self.fold)
 
@@ -102,30 +80,31 @@ class CassavaModule(pl.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
+        x, y, indices = batch
+        ind = indices.cpu().numpy().transpose()
+        y_hat = self.model(x)
+        y_hat2 = self.model2(x)
+        noise_or_not = [0] * len(self.trn_ds)
+        noise_or_not = np.array(noise_or_not)
 
-        if self.mixup:
-            x, y_a, y_b, lam = mixup_data(x, y)
-
-        y_hat = self.forward(x)
-
-        if self.mixup:
-            loss = mixup_criterion(self.crit, y_hat, y_a, y_b, lam)
-        elif self.do_cutmix:
-            loss = self.crit(y_hat, y)
+        if self.current_epoch < self.init_epoch:
+            loss_1, loss_2, _, _ = loss_coteaching(y_hat, y_hat2, y, self.rate_schedule[self.current_epoch], ind,
+                                                   noise_or_not)
         else:
-            loss = self.crit(y_hat, y)
+            loss_1, loss_2, _, _ = loss_coteaching_plus(y_hat, y_hat2, y,
+                                                        self.rate_schedule[self.current_epoch], ind,
+                                                        noise_or_not, self.current_epoch * batch_idx)
 
-        self.log('trn/_loss', loss)
-        if not self.do_cutmix:
-            acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-            self.log('trn/_acc', acc, prog_bar=True)
-
-        return loss
+        self.log('trn/_loss_1', loss_1)
+        self.log('trn/_loss_2', loss_2)
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
+        self.log('trn/_acc', acc, prog_bar=True)
+        return loss_1 + loss_2
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat = self.forward(x)
+
+        y_hat = self.model(x)
         loss = F.cross_entropy(y_hat, y)
         acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
 
@@ -144,38 +123,15 @@ class CassavaModule(pl.LightningModule):
 
         lr = float(self.cfg['train_params']['lr'])
 
-        if self.cfg['optimizer'] == 'adam':
-            optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        elif self.cfg['optimizer'] == 'adamw':
-            optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
-        elif self.cfg['optimizer'] == 'adamw_gcc2':
-            optimizer = AdamW_GCC2(self.parameters(), lr=lr)
-        else:
-            raise Exception('optimizer {} not supported'.format(self.cfg['optimizer']))
+        optimizer = AdamW_GCC2(list(self.model.parameters()) + list(self.model2.parameters()), lr=lr)
 
-        self.opt = optimizer
+        T_mult = self.cfg['scheduler']['T_mult']
+        T_0 = self.cfg['scheduler']['T_0']
+        eta_min = float(self.cfg['scheduler']['eta_min'])
+        sched = CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=eta_min, last_epoch=-1)
+        sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
 
-        if self.cfg['scheduler']['type'] == 'none':
-            sched = None
-        elif self.cfg['scheduler']['type'] == 'CosineAnnealingWarmRestarts':
-            T_mult = self.cfg['scheduler']['T_mult']
-            T_0 = self.cfg['scheduler']['T_0']
-            eta_min = float(self.cfg['scheduler']['eta_min'])
-            sched = CosineAnnealingWarmRestarts(optimizer, T_0=T_0, T_mult=T_mult, eta_min=eta_min, last_epoch=-1)
-        elif self.cfg['scheduler']['type'] == 'OneCycleLR':
-            max_lr = float(self.cfg['scheduler']['max_lr'])
-            steps_per_epoch = cfg['scheduler']['steps_per_epoch']
-            epochs = cfg['scheduler']['epochs']
-            sched = OneCycleLR(optimizer, max_lr=max_lr, steps_per_epoch=steps_per_epoch, epochs=epochs)
-        else:
-            raise Exception('scheduler {} not supported'.format(self.cfg['scheduler']['type']))
-        if sched is not None:
-            sched = {'scheduler': sched, 'name': format(self.cfg['scheduler']['type'])}
-
-        if sched is not None:
-            return [optimizer], [sched]
-        else:
-            return optimizer
+        return [optimizer], [sched]
 
     def train_dataloader(self):
 
@@ -183,9 +139,8 @@ class CassavaModule(pl.LightningModule):
 
         train = pd.read_csv(self.csv_path)
         trn_ds = CassavaDs(df=train[train.fold != self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
-                           aug=trn_aug, path=self.trn_path)
-        if self.do_cutmix:
-            trn_ds = CutMix(trn_ds, num_class=5, beta=1.0, prob=0.5, num_mix=2)
+                           aug=trn_aug, path=self.trn_path, return_index=True)
+        self.trn_ds = trn_ds
 
         trn_dl = torch.utils.data.DataLoader(trn_ds, shuffle=True,
                                              batch_size=self.batch_size,
@@ -223,7 +178,7 @@ if __name__ == '__main__':
     lrm = LearningRateMonitor()
     mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, )
     precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
+    grad_clip = float(get_or_default(cfg, 'grad_clip', 0))
     trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
                          logger=logger, precision=precision, gradient_clip_val=grad_clip)
 

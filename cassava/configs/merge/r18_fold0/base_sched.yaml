@@ -1,0 +1,20 @@
+optimizer: adam
+batch_size: 16
+num_workers: 4
+backbone: resnet18
+head: v0
+n_out: 512
+img_size: 512
+trn_path: input/train_merged
+csv_path: input/train_folds_merged.csv
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 2
+  T_0: 15
+  eta_min: 1e-6
+train_params:
+  epochs: 200
+  lr: 1e-3
+  num_workers: 4
+  batch_size: 64
+  fold: 0

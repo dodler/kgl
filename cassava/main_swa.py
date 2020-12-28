@@ -32,29 +32,6 @@ from cutmix.cutmix import CutMix
 SEED = 2020
 seed_everything(SEED)
 
-
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
-    '''Returns mixed inputs, pairs of targets, and lambda'''
-    if alpha > 0:
-        lam = np.random.beta(alpha, alpha)
-    else:
-        lam = 1
-
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
-
-
-def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
-
-
 def get_or_default(d, key, default_value):
     if key in d:
         return d[key]
@@ -104,22 +81,12 @@ class CassavaModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
 
-        if self.mixup:
-            x, y_a, y_b, lam = mixup_data(x, y)
-
         y_hat = self.forward(x)
-
-        if self.mixup:
-            loss = mixup_criterion(self.crit, y_hat, y_a, y_b, lam)
-        elif self.do_cutmix:
-            loss = self.crit(y_hat, y)
-        else:
-            loss = self.crit(y_hat, y)
+        loss = self.crit(y_hat, y)
 
         self.log('trn/_loss', loss)
-        if not self.do_cutmix:
-            acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-            self.log('trn/_acc', acc, prog_bar=True)
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
+        self.log('trn/_acc', acc, prog_bar=True)
 
         return loss
 

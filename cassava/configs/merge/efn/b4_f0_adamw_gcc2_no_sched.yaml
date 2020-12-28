@@ -1,0 +1,16 @@
+optimizer: adamw_gcc2
+backbone: tf_efficientnet_b4_ns
+head: v0
+n_out: 1792
+img_size: 512
+trn_path: input/train_merged
+csv_path: input/train_folds_merged.csv
+crit: smooth
+scheduler:
+  type: none
+train_params:
+  epochs: 200
+  lr: 1e-4
+  num_workers: 4
+  batch_size: 15
+  fold: 0

@@ -2,10 +2,11 @@ import cv2
 
 
 class CassavaDs:
-    def __init__(self, df, aug, path):
+    def __init__(self, df, aug, path, return_index=False):
         self.df = df
         self.aug = aug
         self.path = path
+        self.return_index = return_index
 
     def __len__(self):
         return self.df.shape[0]
@@ -17,6 +18,9 @@ class CassavaDs:
         img = cv2.imread(image_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.aug(image=img)['image']
-        label = self.df.iloc[idx, 1]
+        label = self.df.label.values[idx]
 
-        return img, label
+        if self.return_index:
+            return img, int(label), idx
+        else:
+            return img, int(label)
