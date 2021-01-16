@@ -1,0 +1,19 @@
+optimizer: adamw_gcc2
+num_workers: 4
+backbone: RepVGG-B2g4
+head: v1
+img_size: 600
+aug: '1'
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 1
+  T_0: 10
+  eta_min: 1e-6
+train_params:
+  epochs: 200
+  lr: 5e-4
+  num_workers: 2
+  batch_size: 16
+  fold: 0
+  precision: 16
+  clip_grad: 2.0

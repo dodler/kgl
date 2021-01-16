@@ -30,7 +30,7 @@ def get_aug(atype, size):
         ])
     elif atype == '2':
         return alb.Compose([
-            alb.RandomResizedCrop(size, size, p=1),
+            alb.RandomResizedCrop(size, size, p=1, scale=(0.9, 1)),
             alb.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=0.2),
             alb.RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.2),
             alb.Transpose(p=0.2),
@@ -40,3 +40,12 @@ def get_aug(atype, size):
             alb.Normalize(p=1),
             ToTensorV2(p=1),
         ])
+    elif atype == '3':
+        return alb.Compose([
+            alb.RandomResizedCrop(size, size, p=1),
+            alb.HorizontalFlip(p=0.2),
+            alb.Normalize(p=1),
+            ToTensorV2(p=1),
+        ])
+    else:
+        raise Exception('atype |{}| not supoprted'.format(atype))

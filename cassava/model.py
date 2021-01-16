@@ -3,6 +3,8 @@ import torch.nn as nn
 import timm
 import torch.nn.functional as F
 
+from cassava.repvgg import get_RepVGG_func_by_name
+
 
 class GeM(nn.Module):
     def __init__(self, p=3, eps=1e-6):
@@ -20,16 +22,38 @@ class GeM(nn.Module):
         return self.__class__.__name__ + '(' + 'p=' + '{:.4f}'.format(self.p.data.tolist()[0]) + ', ' + 'eps=' + str(
             self.eps) + ')'
 
+state_dicts={
+    'RepVGG-B2g4': '/home/smith/RepVGG-B2g4-200epochs-train.pth',
+    'RepVGG-B0': '/home/smith/RepVGG-B0-train.pth',
+    'RepVGG-B1': '/home/smith/RepVGG-B1-train.pth',
+}
+
 
 class CassavaModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         if 'pool' not in cfg:
             cfg['pool'] = 'avg_pool'
-        self.backbone = timm.create_model(cfg['backbone'], pretrained=True)
+
+        if 'RepVGG' in cfg['backbone']:
+            repvgg_build_func = get_RepVGG_func_by_name(cfg['backbone'])
+            self.backbone = repvgg_build_func(deploy=False)
+            ckpt = state_dicts[cfg['backbone']]
+            ckpt=torch.load(ckpt, map_location='cpu')
+            self.backbone.load_state_dict(ckpt)
+        else:
+            self.backbone = timm.create_model(cfg['backbone'], pretrained=True)
         n_hidden = 4096
-        n_out = cfg['n_out']
-        self.n_out = n_out
+        if 'efficient' in cfg['backbone']:
+            n_out = self.backbone.classifier.in_features
+        elif 'inception' in cfg['backbone']:
+            n_out = self.backbone.last_linear.in_features
+        elif 'hrnet' in cfg['backbone']:
+            n_out = self.backbone.classifier.in_features
+        elif 'RepVGG' in cfg['backbone']:
+            n_out = self.backbone.linear.in_features
+        else:
+            n_out = self.backbone.fc.in_features
         head = cfg['head']
         if head == 'v0':
             self.head = nn.Sequential(
