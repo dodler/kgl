@@ -1,0 +1,9 @@
+optimizer: adamw_gcc2
+backbone: tf_efficientnet_b4_ns
+train_params:
+  epochs: 80
+  lr: 5e-4
+  num_workers: 4
+  batch_size: 32
+  grad_clip: 2.0
+  precision: 32

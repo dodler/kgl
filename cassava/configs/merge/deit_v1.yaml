@@ -1,17 +1,17 @@
 optimizer: adamw_gcc2
 num_workers: 4
-backbone: tf_efficientnet_b4_ns
+backbone: deit_small_patch16_224
 head: v1
-img_size: 512
+img_size: 224
 aug: '2'
-crit: taylor+smooth
+crit: smooth
 scheduler:
   type: CosineAnnealingWarmRestarts
   T_mult: 2
   T_0: 10
   eta_min: 1e-8
 train_params:
-  epochs: 100
+  epochs: 80
   lr: 5e-4
   num_workers: 4
   batch_size: 16

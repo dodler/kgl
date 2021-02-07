@@ -4,16 +4,17 @@ backbone: tf_efficientnet_b4_ns
 head: v1
 img_size: 512
 aug: '2'
-crit: taylor+smooth
+crit: smooth
 scheduler:
   type: CosineAnnealingWarmRestarts
   T_mult: 2
   T_0: 10
   eta_min: 1e-8
 train_params:
-  epochs: 100
-  lr: 5e-4
+  epochs: 60
+  lr: 1e-3
   num_workers: 4
   batch_size: 16
   precision: 16
   clip_grad: 2.0
+  fold: 0

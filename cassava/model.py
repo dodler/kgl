@@ -35,23 +35,31 @@ class CassavaModel(nn.Module):
         if 'pool' not in cfg:
             cfg['pool'] = 'avg_pool'
 
+        self.backbone_name = cfg['backbone']
+
         if 'RepVGG' in cfg['backbone']:
             repvgg_build_func = get_RepVGG_func_by_name(cfg['backbone'])
             self.backbone = repvgg_build_func(deploy=False)
             ckpt = state_dicts[cfg['backbone']]
             ckpt=torch.load(ckpt, map_location='cpu')
             self.backbone.load_state_dict(ckpt)
+        elif 'deit' in cfg['backbone']:
+            self.backbone = torch.hub.load('facebookresearch/deit:main', cfg['backbone'], pretrained=True)
         else:
             self.backbone = timm.create_model(cfg['backbone'], pretrained=True)
         n_hidden = 4096
         if 'efficient' in cfg['backbone']:
             n_out = self.backbone.classifier.in_features
+        elif 'deit' in cfg['backbone']:
+            n_out = self.backbone.head.in_features
         elif 'inception' in cfg['backbone']:
             n_out = self.backbone.last_linear.in_features
         elif 'hrnet' in cfg['backbone']:
             n_out = self.backbone.classifier.in_features
         elif 'RepVGG' in cfg['backbone']:
             n_out = self.backbone.linear.in_features
+        elif 'vit' in cfg['backbone']:
+            n_out = self.backbone.head.in_features
         else:
             n_out = self.backbone.fc.in_features
         head = cfg['head']
@@ -82,7 +90,8 @@ class CassavaModel(nn.Module):
 
     def forward(self, x):
         x = self.backbone.forward_features(x)
-        x = self.pool(x).squeeze()
+        if 'deit' not in self.backbone_name and 'vit' not in self.backbone_name:
+            x = self.pool(x).squeeze()
         return self.head(x)
 
 

@@ -1,30 +1,24 @@
 import argparse
 
-from snapmix import *
 import albumentations as alb
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from albumentations.pytorch.transforms import ToTensorV2
+from aug import get_aug
 from benedict import benedict
+from data import CassavaDs
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
-from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
 from pytorch_lightning.loggers import TensorBoardLogger
+from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
+from cassava.model_manifold_mixup import CassavaModel
 from cassava.radam import RAdam
-from cassava.smoothed_loss import SmoothCrossEntropyLoss
-
-from cassava.snapmix import SnapMixLoss, snapmix
 from grad_cent import AdamW_GCC2
-from data import CassavaDs
-from cassava.model_snap import CassavaModel
-from aug import get_aug
 
 
 def get_or_default(d, key, default_value):
@@ -41,18 +35,13 @@ device = 0
 
 class CassavaModule(pl.LightningModule):
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, fold):
         super().__init__()
+        self.fold = fold
         self.cfg = cfg
         self.model = CassavaModel(cfg=cfg)
-        if cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(reduction='mean', smoothing=0.05)
-            self.snap_mix_crit = SnapMixLoss(smooth=True)
-        else:
-            self.crit = nn.CrossEntropyLoss()
-            self.snap_mix_crit = SnapMixLoss(smooth=False)
+        self.crit = nn.BCELoss()
         trn_params = cfg['train_params']
-        self.fold = get_or_default(trn_params, 'fold', 0)
         self.batch_size = get_or_default(trn_params, 'batch_size', 16)
         self.num_workers = get_or_default(trn_params, 'num_workers', 2)
         self.csv_path = get_or_default(cfg, 'csv_path', 'input/train_folds_merged.csv')
@@ -66,16 +55,10 @@ class CassavaModule(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
 
-        rand = np.random.rand()
-        if rand > (1.0 - SNAPMIX_PCT):
-            X, ya, yb, lam_a, lam_b = snapmix(x, y, SNAPMIX_ALPHA, self.model)
-            outputs, _ = self.model(X)
-            loss = self.snap_mix_crit(self.crit, outputs, ya, yb, lam_a, lam_b)
-        else:
-            outputs, _ = self.model(x)
-            loss = self.crit(outputs, y)
+        y_hat, feats, y_reweghted = self.model(x, y)
+        loss = self.crit(torch.softmax(y_hat, dim=1), y_reweghted)
 
-        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(outputs.detach().cpu().numpy(), axis=1))
+        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
 
         self.log('trn/_loss', loss)
         self.log('trn/_acc', acc, prog_bar=True)
@@ -84,19 +67,15 @@ class CassavaModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
-        y_hat, _ = self.forward(x)
-        loss = F.cross_entropy(y_hat, y)
+        y_hat, _, _ = self.forward(x)
         acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
 
-        self.log('val/_loss', loss)
         self.log('val/_acc', acc, prog_bar=True)
 
-        return loss, acc
+        return acc
 
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x[0] for x in outputs]).mean()
-        avg_acc = np.array([x[1] for x in outputs]).mean()
-        self.log('val/avg_loss', avg_loss)
+        avg_acc = np.array(outputs).mean()
         self.log('val/avg_acc', avg_acc)
 
     def configure_optimizers(self):
@@ -165,15 +144,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True)
     parser.add_argument('--resume', type=str, required=False)
+    parser.add_argument('--fold', type=int, required=False, default=0)
     args = parser.parse_args()
 
     cfg = benedict.from_yaml(args.config)
-    module = CassavaModule(cfg=cfg)
+    module = CassavaModule(cfg=cfg, fold=args.fold)
 
     early_stop = EarlyStopping(monitor='val/avg_acc', verbose=True, patience=10, mode='max')
-    logger = TensorBoardLogger("lightning_logs", name=args.config)
+    output_name = args.config + '_fold_' + str(args.fold)
+    logger = TensorBoardLogger("lightning_logs", name=output_name)
     lrm = LearningRateMonitor()
-    mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, mode='max')
+    mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=1, mode='max')
     precision = get_or_default(cfg['train_params'], key='precision', default_value=32)
     clip_grad = get_or_default(cfg['train_params'], key='clip_grad', default_value=0.0)
     trainer = pl.Trainer(gpus=1, max_epochs=60, callbacks=[early_stop, lrm, mdl_ckpt], logger=logger,

@@ -66,12 +66,12 @@ def get_or_default(d, key, default_value):
 
 class CassavaModule(pl.LightningModule):
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, fold=0):
         super().__init__()
         self.cfg = cfg
         self.model = CassavaModel(cfg=cfg)
         trn_params = cfg['train_params']
-        self.fold = get_or_default(trn_params, 'fold', 0)
+        self.fold = fold
         self.batch_size = get_or_default(trn_params, 'batch_size', 16)
         self.num_workers = get_or_default(trn_params, 'num_workers', 2)
         self.aug_type = get_or_default(cfg, 'aug', '0')
@@ -217,18 +217,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True)
     parser.add_argument('--resume', type=str, required=False)
+    parser.add_argument('--fold', type=int, required=False, default=0)
     args = parser.parse_args()
 
     cfg = benedict.from_yaml(args.config)
-    module = CassavaModule(cfg=cfg)
+    module = CassavaModule(cfg=cfg, fold=args.fold)
 
-    early_stop = EarlyStopping(monitor='val/avg_acc', verbose=True, patience=200, mode='max')
-    logger = TensorBoardLogger("lightning_logs", name=args.config)
+    early_stop = EarlyStopping(monitor='val/avg_acc', verbose=True, patience=20, mode='max')
+    output_name = args.config + '_fold_' + str(args.fold)
+    logger = TensorBoardLogger("lightning_logs", name=output_name)
     lrm = LearningRateMonitor()
-    mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, mode='max')
-    precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
-    trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
+    mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=1, mode='max')
+    precision = get_or_default(cfg['train_params'], 'precision', 32)
+    grad_clip = float(get_or_default(cfg['train_params'], 'grad_clip', 0))
+    epochs = int(get_or_default(cfg['train_params'], 'epochs', 80))
+    trainer = pl.Trainer(gpus=1, max_epochs=epochs, callbacks=[early_stop, lrm, mdl_ckpt],
                          logger=logger, precision=precision, gradient_clip_val=grad_clip)
 
     trainer.fit(module)

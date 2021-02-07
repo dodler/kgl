@@ -3,6 +3,8 @@ import torch.nn.functional as F
 import torch
 import torch.nn as nn
 
+from cassava.smoothed_loss import SmoothCrossEntropyLoss
+
 device = 0
 
 
@@ -103,9 +105,12 @@ def snapmix(input, target, alpha, model=None):
 
 
 class SnapMixLoss(nn.Module):
-    def __init__(self):
+    def __init__(self, smooth=False):
         super().__init__()
-        self.criterion = nn.CrossEntropyLoss(reduction='none').to(device)
+        if smooth:
+            self.criterion = SmoothCrossEntropyLoss(reduction=None, smoothing=0.05)
+        else:
+            self.criterion = nn.CrossEntropyLoss(reduction='none').to(device)
 
     def forward(self, criterion, outputs, ya, yb, lam_a, lam_b):
         loss_a = self.criterion(outputs, ya)
