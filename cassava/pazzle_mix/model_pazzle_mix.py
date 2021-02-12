@@ -1,3 +1,5 @@
+import random
+
 import timm
 import torch.nn as nn
 
@@ -7,11 +9,8 @@ from cassava.pazzle_mix.pazzle_mixup import mixup_process, to_one_hot, get_lambd
 class CassavaModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        backbone = timm.create_model(cfg['backbone'], pretrained=True)
-        if 'efficient' in cfg['backbone']:
-            n_features = backbone.classifier.in_features
-        else:
-            n_features = backbone.fc.in_features
+        backbone = timm.create_model('seresnext50_32x4d', pretrained=True)
+        n_features = backbone.fc.in_features
         self.backbone = backbone
         self.classifier = nn.Linear(n_features, 5)
         self.pool = nn.AdaptiveAvgPool2d((1, 1))
@@ -21,34 +20,33 @@ class CassavaModel(nn.Module):
         return x
 
     def forward(self, x, y=None, grad=None):
-        # works only for efn
-
+        layer_mix = random.randint(0, 2)
         if y is not None:
             target_reweighted = to_one_hot(y, 5)
         else:
             target_reweighted = None
 
-        if y is not None:
-            x, target_reweighted = mixup_process(x, target_reweighted, args=None, grad=grad, noise=None,
-                                                 adv_mask1=0, adv_mask2=0, mp=4)
+        if layer_mix == 0:
+            x, target_reweighted = mixup_process(x, target_reweighted, args=None, grad=grad, noise=noise,
+                                                   adv_mask1=0, adv_mask2=0, mp=mp)
 
-        x = self.backbone.conv_stem(x)
+        x = self.backbone.conv1(x)
         x = self.backbone.bn1(x)
         x = self.backbone.act1(x)
+        x = self.backbone.maxpool(x)
 
-        # if y is not None:
-        #     lam = get_lambda(alpha=2.0)  # from github
-        #     x, target_reweighted = mixup_process(out=x, target_reweighted=target_reweighted, lam=lam)
+        x = self.backbone.layer1(x)
 
-        x = self.backbone.blocks(x)
+        if layer_mix == 1:
+            x, target_reweighted = mixup_process(x, target_reweighted, args=None, hidden=True)
 
-        # if y is not None:
-        #     lam = get_lambda(alpha=2.0)  # from github
-        #     x, target_reweighted = mixup_process(out=x, target_reweighted=target_reweighted, lam=lam)
-
-        x = self.backbone.conv_head(x)
-        x = self.backbone.bn2(x)
-        feats = self.backbone.act2(x)
+        x = self.backbone.layer2(x)
+        if layer_mix == 2:
+            x, target_reweighted = mixup_process(x, target_reweighted, args=None, hidden=True)
+        x = self.backbone.layer3(x)
+        if layer_mix == 3:
+            x, target_reweighted = mixup_process(x, target_reweighted, args=None, hidden=True)
+        feats = self.backbone.layer4(x)
 
         x = self.pool(feats).view(x.size(0), -1)
 
