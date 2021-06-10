@@ -1,0 +1,23 @@
+optimizer: adamw_gcc2
+model: ShopeeModelResnext
+backbone: resnext269
+image_path: /home/jovyan/kaggle/shopee/train_images/
+csv_path: /home/jovyan/kaggle/shopee/train_fold.csv
+crit: arcface
+aug:
+  type: 'base'
+  size: 224
+grad_clip: 0.5
+precision: 32
+margin_start: 10
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 2
+  T_0: 20
+  eta_min: 1e-8
+train_params:
+  epochs: 50
+  lr: 5e-4
+  num_workers: 4
+  batch_size: 128
+  fold: 0

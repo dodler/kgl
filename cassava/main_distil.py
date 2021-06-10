@@ -18,7 +18,7 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
 from cassava.model import CassavaModel
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 SEED = 2020

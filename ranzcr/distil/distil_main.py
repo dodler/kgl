@@ -1,5 +1,4 @@
 import argparse
-from collections import Counter
 
 import albumentations as alb
 import numpy as np
@@ -7,71 +6,47 @@ import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from albumentations.pytorch.transforms import ToTensorV2
 from benedict import benedict
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_toolbelt.losses import FocalLoss
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import roc_auc_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
-from cassava.aug import get_aug
-from cassava.data import CassavaDs
-from cassava.focal_cosine_loss import FocalCosineLoss
-from cassava.ldam import LDAMLoss
-from cassava.model import CassavaModel
-from cassava.smoothed_loss import SmoothCrossEntropyLoss
+from opt.radam import RAdam
 from opts.grad_cent import AdamW_GCC2
+from ranzcr.aug import get_aug
+from ranzcr.data import RanzcrDs
+from ranzcr.distil.distil_crits import get_crit
+from ranzcr.model import RanzcrModel
 from seed import seed_everything
-
-from cutmix.utils import CutMixCrossEntropyLoss
-from cutmix.cutmix import CutMix
+from utils import get_or_default
 
 SEED = 2020
 seed_everything(SEED)
 
-def get_or_default(d, key, default_value):
-    if key in d:
-        return d[key]
-    else:
-        return default_value
 
+# relational knowledge distillation
 
-class CassavaModule(pl.LightningModule):
+class RanzcrModule(pl.LightningModule):
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, fold):
         super().__init__()
         self.cfg = cfg
-        self.model = CassavaModel(cfg=cfg)
+        self.model = RanzcrModel(cfg=cfg)
         trn_params = cfg['train_params']
-        self.fold = get_or_default(trn_params, 'fold', 0)
+        self.fold = fold
         self.batch_size = get_or_default(trn_params, 'batch_size', 16)
         self.num_workers = get_or_default(trn_params, 'num_workers', 2)
         self.aug_type = get_or_default(cfg, 'aug', '0')
         self.csv_path = get_or_default(cfg, 'csv_path', 'input/train_folds.csv')
-        self.trn_path = get_or_default(cfg, 'image_path', 'input/train_merged')
-        self.mixup = get_or_default(cfg, 'mixup', False)
-        self.do_cutmix = False
+        self.trn_path = get_or_default(cfg, 'image_path', 'input/train')
 
-        if 'crit' not in cfg:
-            self.crit = nn.CrossEntropyLoss()
-        elif cfg['crit'] == 'focal':
-            self.crit = FocalLoss()
-        elif cfg['crit'] == 'smooth':
-            self.crit = SmoothCrossEntropyLoss(smoothing=0.05)
-        elif cfg['crit'] == 'cutmix':
-            self.crit = CutMixCrossEntropyLoss(True)
-            self.do_cutmix = True
-        elif self.cfg['crit'] == 'focal_cosine':
-            self.crit = FocalCosineLoss()
-        elif self.cfg['crit'] == 'ldam':
-            labels_list = list(Counter(pd.read_csv(self.csv_path).label.values).values())
-            self.crit = LDAMLoss(labels_list)
-        else:
-            raise Exception('criterion not specified')
-        print('mixup', self.mixup)
+        self.ratio = float(get_or_default(trn_params, 'ratio', 0.1))
+
+        self.crit = nn.BCEWithLogitsLoss()
+        self.distil_crit = get_crit(trn_params=trn_params)
 
         print('using fold', self.fold)
 
@@ -79,33 +54,34 @@ class CassavaModule(pl.LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
-
+        x, y, idx, teacher_logits = batch
         y_hat = self.forward(x)
-        loss = self.crit(y_hat, y)
-
+        loss_distil = self.distil_crit(student=torch.sigmoid(y_hat, dim=1), teacher=teacher_logits)
+        loss = self.crit(input=y_hat, target=y.float())
         self.log('trn/_loss', loss)
-        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
-        self.log('trn/_acc', acc, prog_bar=True)
+        self.log('trn/_loss_distil', loss_distil)
 
-        return loss
+        return loss + self.ratio * loss_distil
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
+        x, y, idx = batch
         y_hat = self.forward(x)
-        loss = F.cross_entropy(y_hat, y)
-        acc = accuracy_score(y.detach().cpu().numpy(), np.argmax(y_hat.detach().cpu().numpy(), axis=1))
 
-        self.log('val/_loss', loss)
-        self.log('val/_acc', acc, prog_bar=True)
-
-        return loss, acc
+        return y_hat.detach().cpu().numpy(), y.detach().cpu().numpy()
 
     def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x[0] for x in outputs]).mean()
-        avg_acc = np.array([x[1] for x in outputs]).mean()
-        self.log('val/avg_loss', avg_loss)
-        self.log('val/avg_acc', avg_acc)
+        predictions = np.concatenate([x[0] for x in outputs])
+        gt = np.concatenate([x[1] for x in outputs])
+
+        scores = []
+        for i in range(11):
+            try:
+                ra = roc_auc_score(y_true=gt[:, i], y_score=predictions[:, i])
+            except:
+                ra = 0
+            scores.append(ra)
+
+        self.log('val/_avg_roc_auc', np.array(scores).mean())
 
     def configure_optimizers(self):
 
@@ -117,6 +93,8 @@ class CassavaModule(pl.LightningModule):
             optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
         elif self.cfg['optimizer'] == 'adamw_gcc2':
             optimizer = AdamW_GCC2(self.parameters(), lr=lr)
+        elif self.cfg['optimizer'] == 'radam':
+            optimizer = RAdam(self.model.parameters())
         else:
             raise Exception('optimizer {} not supported'.format(self.cfg['optimizer']))
 
@@ -146,13 +124,11 @@ class CassavaModule(pl.LightningModule):
 
     def train_dataloader(self):
 
-        trn_aug = get_aug(atype=self.aug_type, size=self.cfg['img_size'])
+        trn_aug = get_aug(cfg=self.cfg)
 
         train = pd.read_csv(self.csv_path)
-        trn_ds = CassavaDs(df=train[train.fold != self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
-                           aug=trn_aug, path=self.trn_path)
-        if self.do_cutmix:
-            trn_ds = CutMix(trn_ds, num_class=5, beta=1.0, prob=0.5, num_mix=2)
+        trn_ds = RanzcrDs(df=train[train.fold != self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
+                          aug=trn_aug, path=self.trn_path, logits_path=get_or_default(cfg, 'logits', 'logits.npy'))
 
         trn_dl = torch.utils.data.DataLoader(trn_ds, shuffle=True,
                                              batch_size=self.batch_size,
@@ -161,15 +137,15 @@ class CassavaModule(pl.LightningModule):
 
     def val_dataloader(self):
         val_aug = alb.Compose([
-            alb.Resize(self.cfg['img_size'], self.cfg['img_size'], p=1),
-            alb.Normalize(p=1),
+            alb.Resize(self.cfg['aug']['size'], self.cfg['aug']['size'], p=1),
+            alb.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
             ToTensorV2(p=1),
         ])
 
         train = pd.read_csv(self.csv_path)
 
-        val_ds = CassavaDs(df=train[train.fold == self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
-                           aug=val_aug, path=self.trn_path)
+        val_ds = RanzcrDs(df=train[train.fold == self.fold].reset_index().drop('index', axis=1).drop('fold', axis=1),
+                          aug=val_aug, path=self.trn_path)
         val_dl = torch.utils.data.DataLoader(val_ds, shuffle=False,
                                              batch_size=self.batch_size,
                                              num_workers=self.num_workers)
@@ -180,17 +156,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=True)
     parser.add_argument('--resume', type=str, required=False)
+    parser.add_argument('--fold', type=int, default=0, required=False)
     args = parser.parse_args()
 
     cfg = benedict.from_yaml(args.config)
-    module = CassavaModule(cfg=cfg)
+    module = RanzcrModule(cfg=cfg, fold=args.fold)
 
-    early_stop = EarlyStopping(monitor='val/avg_acc', verbose=True, patience=200, mode='max')
-    logger = TensorBoardLogger("lightning_logs", name=args.config)
+    early_stop = EarlyStopping(monitor='val/_avg_roc_auc', verbose=True, patience=20, mode='max')
+    logger = TensorBoardLogger("lightning_logs", name=args.config + '_distil_fold_{}'.format(args.fold))
     lrm = LearningRateMonitor()
-    mdl_ckpt = ModelCheckpoint(monitor='val/avg_acc', save_top_k=3, )
+    mdl_ckpt = ModelCheckpoint(monitor='val/_avg_roc_auc', save_top_k=3, mode='max')
     precision = get_or_default(cfg, 'precision', 32)
-    grad_clip = float(get_or_default( cfg, 'grad_clip', 0))
+    grad_clip = float(get_or_default(cfg, 'grad_clip', 0))
     trainer = pl.Trainer(gpus=1, max_epochs=100, callbacks=[early_stop, lrm, mdl_ckpt],
                          logger=logger, precision=precision, gradient_clip_val=grad_clip)
 

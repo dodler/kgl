@@ -1,11 +1,11 @@
 optimizer:
-  name: AdamW_GCC2
+  name: AdamW
   lr: 5e-4
   weight_decay: 5e-4
 scheduler:
   type: CosineAnnealingWarmRestarts
   T_mult: 2
-  T_0: 10
+  T_0: 20
   eta_min: 1e-8
 model:
   backbone: timm-efficientnet-b4
@@ -14,7 +14,8 @@ train_params:
   epochs: 200
   batch_size: 32
   num_workers: 4
-  train_path: ../input/hubmap/crops1024/train/
-  mask_path: ../input/hubmap/crops1024/masks/
-precision: 16
-clip_grad: 2.0
+  data_path: ../input/hubmap-kidney-segmentation
+  data_path_zarr: ../input/hubmap-zarr/train_scale2
+  mask_preproc_dir: /kaggle/input/hubmap-labels-pdf-0-5-0-25-0-01/masks_scale2
+precision: 32
+clip_grad: 0.5

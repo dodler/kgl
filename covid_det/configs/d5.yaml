@@ -1,0 +1,12 @@
+optimizer: adamw
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 1
+  T_0: 10
+  eta_min: 1e-6
+precision: 32
+grad_clip: 0.5
+train_params:
+  epochs: 200
+  lr: 1e-3
+  num_workers: 2

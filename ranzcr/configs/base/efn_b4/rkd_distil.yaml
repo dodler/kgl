@@ -1,0 +1,26 @@
+optimizer: adamw_gcc2
+backbone: tf_efficientnet_b5_ns
+head: v1
+n_out: 1792
+trn_path: input/train
+csv_path: input/train_group_folds.csv
+crit: smooth
+aug:
+  'name': 'v0'
+  'size': 768
+grad_clip: 2.0
+precision: 16
+scheduler:
+  type: CosineAnnealingWarmRestarts
+  T_mult: 2
+  T_0: 10
+  eta_min: 1e-8
+train_params:
+  epochs: 50
+  lr: 5e-4
+  num_workers: 4
+  batch_size: 16
+  fold: 0
+  dark_alpha: 2.0
+  dark_beta: 3.0
+  dark_ratio: 0.1

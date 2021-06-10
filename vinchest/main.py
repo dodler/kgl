@@ -1,6 +1,10 @@
 import sys
 
+import argparse
+
+from benedict import benedict
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
 
 sys.path.append('/home/jovyan/kaggle/vinxray_chest/timm-efficientdet-pytorch')
 
@@ -137,23 +141,23 @@ class TrainGlobalConfig:
 
 
 if __name__ == '__main__':
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--config', type=str, required=True)
-    # parser.add_argument('--resume', type=str, required=False)
-    # parser.add_argument('--fold', type=int, required=False, default=0)
-    # args = parser.parse_args()
-    #
-    # cfg = benedict.from_yaml(args.config)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, required=True)
+    parser.add_argument('--resume', type=str, required=False)
+    parser.add_argument('--fold', type=int, required=False, default=0)
+    args = parser.parse_args()
+
+    cfg = benedict.from_yaml(args.config)
     module = VinchestModule()
     #
-    # output_name = args.config + '_fold_' + str(args.fold)
-    # logger = TensorBoardLogger("lightning_logs", name=output_name)
+    output_name = args.config + '_fold_' + str(args.fold)
+    logger = TensorBoardLogger("lightning_logs", name=output_name)
 
     early_stop = EarlyStopping(monitor='val/avg_loss', verbose=True, patience=10, mode='min')
     lrm = LearningRateMonitor()
     mdl_ckpt = ModelCheckpoint(monitor='val/avg_loss', save_top_k=3, mode='min')
     precision = 32
-    grad_clip = 2
+    grad_clip = 0.5
     epochs = 80
     trainer = pl.Trainer(gpus=1,
                          max_epochs=epochs,

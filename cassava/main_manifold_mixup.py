@@ -17,8 +17,8 @@ from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
 from cassava.model_manifold_mixup import CassavaModel
-from cassava.radam import RAdam
-from grad_cent import AdamW_GCC2
+from opts.radam import RAdam
+from opts.grad_cent import AdamW_GCC2
 
 
 def get_or_default(d, key, default_value):

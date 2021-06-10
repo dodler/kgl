@@ -19,7 +19,7 @@ from cassava.aug import get_aug
 from cassava.bi_temp_loss import bi_tempered_logistic_loss
 from cassava.data import CassavaDs
 from cassava.model import CassavaModel
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 SEED = 2020

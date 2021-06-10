@@ -14,7 +14,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import roc_auc_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from ranzcr.aug import get_aug
 from ranzcr.data import RanzcrDs
 from ranzcr.model import RanzcrModel

@@ -1,29 +1,23 @@
 import argparse
-from collections import Counter
 
 import albumentations as alb
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from albumentations.pytorch.transforms import ToTensorV2
 from benedict import benedict
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_toolbelt.losses import FocalLoss
 from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
-from cassava.focal_cosine_loss import FocalCosineLoss
-from cassava.ldam import LDAMLoss
 from cassava.model import CassavaModel
-from cassava.smoothed_loss import SmoothCrossEntropyLoss
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 SEED = 2020

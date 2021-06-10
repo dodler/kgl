@@ -15,10 +15,10 @@ from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import accuracy_score
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
 from cassava.pazzle_mix.model_pazzle_mix import CassavaModel
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 
 
 def get_or_default(d, key, default_value):

@@ -1,13 +1,13 @@
 optimizer: adamw_gcc2
-backbone: tf_efficientnet_b4_ns
+backbone: tf_efficientnet_b5_ns
 head: v1
 n_out: 1792
-trn_path: input/train_merged
-csv_path: input/train_folds_merged.csv
+trn_path: input/train
+csv_path: input/train_group_folds.csv
 crit: smooth
 aug:
   'name': 'v0'
-  'size': 512
+  'size': 768
 grad_clip: 2.0
 precision: 16
 scheduler:
@@ -20,4 +20,5 @@ train_params:
   lr: 5e-4
   num_workers: 4
   batch_size: 16
-  fold: 0
+  topk: 5
+  ratio: 0.1

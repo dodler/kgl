@@ -14,7 +14,7 @@ from sklearn.metrics import accuracy_score
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
 from cassava.smoothed_loss import SmoothCrossEntropyLoss
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from pretrain_medical.data import PretrainDs
 from seed import seed_everything
 

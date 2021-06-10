@@ -13,15 +13,14 @@ from benedict import benedict
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from sklearn.metrics import accuracy_score
-from sklearn.model_selection import train_test_split
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
 
-from cassava.radam import RAdam
+from opts.radam import RAdam
 from cassava.smoothed_loss import SmoothCrossEntropyLoss
 
 from cassava.snapmix import SnapMixLoss, snapmix
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from data import CassavaDs
 from cassava.model_snap import CassavaModel
 from aug import get_aug

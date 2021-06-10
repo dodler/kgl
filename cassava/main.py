@@ -1,7 +1,6 @@
 import argparse
 from collections import Counter
 
-from cassava.sam import SAM
 import albumentations as alb
 import numpy as np
 import pandas as pd
@@ -25,7 +24,7 @@ from cassava.ldam import LDAMLoss
 from cassava.model import CassavaModel
 from cassava.smoothed_loss import SmoothCrossEntropyLoss
 from cassava.taylor_smooth import TaylorCrossEntropyLoss
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 from cutmix.utils import CutMixCrossEntropyLoss

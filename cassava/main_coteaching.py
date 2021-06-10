@@ -1,5 +1,4 @@
 import argparse
-from typing import Optional, Callable
 
 import albumentations as alb
 import numpy as np
@@ -14,14 +13,13 @@ from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
 from pytorch_lightning.loggers import TensorBoardLogger
 from sklearn.metrics import accuracy_score
-from torch.optim import Optimizer
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts, OneCycleLR
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 
 from cassava.aug import get_aug
 from cassava.data import CassavaDs
 from cassava.loss_coteaching import loss_coteaching, loss_coteaching_plus
 from cassava.model import CassavaModel
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 SEED = 2020

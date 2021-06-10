@@ -21,7 +21,7 @@ from cassava.data import CassavaDs
 from cassava.model import CassavaModel
 from cassava.rev_grad import RevGrad
 from cassava.smoothed_loss import SmoothCrossEntropyLoss
-from grad_cent import AdamW_GCC2
+from opts.grad_cent import AdamW_GCC2
 from seed import seed_everything
 
 from cutmix.utils import CutMixCrossEntropyLoss
