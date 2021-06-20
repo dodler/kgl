@@ -72,11 +72,11 @@ class CovidDetModuleBase(pl.LightningModule):
         self.cfg = cfg
         self.model = get_train_efficientdet()
         self.fold = fold
-        self.batch_size = 16
-        self.num_workers = 4
         self.df = pd.read_csv('train_folds_only_pos.csv')
         trn_params = cfg['train_params']
         self.img_size = get_or_default(trn_params, 'img_size', 512)
+        self.batch_size = get_or_default(trn_params, 'batch_size', 16)
+        self.num_workers = get_or_default(trn_params, 'num_workers', 4)
 
         print('using fold', self.fold)
 

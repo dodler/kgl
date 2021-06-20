@@ -9,6 +9,8 @@ model:
 precision: 32
 grad_clip: 0.5
 train_params:
+  mixup: True
+  mixup_alpha: 1.0
   img_size: 512
   grad_starvation_fix: True
   epochs: 200

@@ -1,5 +1,6 @@
 import ast
 
+import cv2
 import numpy as np
 import pandas as pd
 import torch
@@ -44,6 +45,18 @@ def box2arr(boxes):
     return result
 
 
+def make_mask(img, boxes):
+    mask = np.zeros_like(img)
+    for i in range(len(boxes)):
+        x, y, x2, y2 = boxes[i]
+
+        mask[:, y:y2, x:x2] = 1
+    mask = mask.squeeze()
+    mask = cv2.resize(mask, (32, 32))
+    mask = mask.reshape(1, 512, 512)
+    return mask
+
+
 class DatasetRetriever:
 
     def __init__(self, df, aug, cls_mode=False):
@@ -58,12 +71,12 @@ class DatasetRetriever:
         pneumo_type = self.get_label(index)
 
         if self.cls_mode:
-            if self.df['dom'][index] == 'train':
+            if 'dom' in self.df.columns and self.df['dom'][index] == 'train':
                 dom = 0
             else:
                 dom = 1
-
-            return image, pneumo_type, dom
+            mask = make_mask(img=image, boxes=boxes)
+            return image, pneumo_type, dom, mask
 
         labels = torch.ones((boxes.shape[0],), dtype=torch.int64) * pneumo_type
 

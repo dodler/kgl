@@ -9,10 +9,13 @@ model:
 precision: 32
 grad_clip: 0.5
 train_params:
+  mixup: True
+  mixup_alpha: 1.0
   img_size: 512
-  grad_starvation_fix: True
+  grad_starvation_fix: False
+  grad_rev: False
   epochs: 200
   lr: 5e-4
   num_workers: 4
-  batch_size: 32
+  batch_size: 24
   csv: /home/jovyan/kaggle/covid/train_folds.csv
